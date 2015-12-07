@@ -62,12 +62,7 @@ export class ZookeeperLock {
                         this.createClient();
                     });
 
-                    this.client.once('disconnected', () => {
-                        debuglog('disconnected.');
-                        setTimeout(() => {
-                            this.reconnect();
-                        }, this.config.spinDelay);
-                    });
+                    this.client.once('disconnected', this.reconnect);
 
                     resolve(true);
                 });
@@ -76,30 +71,33 @@ export class ZookeeperLock {
     };
 
 
-    public connect = () : Promise<any> => {
+    public connect = (delay : number = 0) : Promise<any> => {
+        debuglog('connecting...');
         return Promise<any>((resolve, reject) => {
-            if (this.connected) {
-                debuglog('already connnected');
-                resolve(true);
-                return;
-            }
+            setTimeout(() => {
+                if (this.connected) {
+                    debuglog('already connnected');
+                    resolve(true);
+                    return;
+                }
 
-            if (this.client === null) {
-                this.createClient().then(() => {
-                    return this.connect();
-                }).then(() => {
+                if (this.client === null) {
+                    this.createClient().then(() => {
+                        return this.connect();
+                    }).then(() => {
+                        resolve(true);
+                    });
+
+                    return;
+                }
+
+                this.client.once('connected', () => {
+                    this.connected = true;
                     resolve(true);
                 });
 
-                return;
-            }
-
-            this.client.once('connected', () => {
-                this.connected = true;
-                resolve(true);
-            });
-
-            this.client.connect();
+                this.client.connect();
+            }, delay);
         });
     };
 
@@ -108,6 +106,8 @@ export class ZookeeperLock {
         return Promise<any>((resolve, reject) => {
             this.client.removeListener('disconnected', this.reconnect);
             this.client.once('disconnected', () => {
+                this.client.removeAllListeners();
+                this.client = null;
                 this.connected = false;
                 debuglog('disconnected');
                 resolve(true);
@@ -119,7 +119,7 @@ export class ZookeeperLock {
     private reconnect = () : Promise<any> => {
         debuglog('reconnecting...');
         this.connected = false;
-        return this.connect();
+        return this.connect(this.config.spinDelay);
     };
 
     public lock = (key : string) : Promise<any> => {

@@ -7,7 +7,7 @@ zookeeper = require('node-zookeeper-client')
 
 
 #todo: set this to the path to your zkServer command to run tests
-zkServerCommandPath = 'zkServer.sh'
+zkServerCommandPath = '~/Downloads/zookeeper-3.4.6/bin/zkServer.sh'
 
 # todo: set this to the address of your zk server if non-standard
 zkServer = 'localhost:2181'
@@ -86,6 +86,27 @@ describe 'Zookeeper lock', ->
       testComplete(ex);
     )
 
+  it "can relock a lock that has been locked and unlocked", (testComplete) ->
+    @timeout 20000
+    ZookeeperLock.lock('test').then((lock) ->
+      lock.signal.on('lost', ->
+        testComplete(new Error('failed, lock should not have been lost'))
+      )
+      lock.unlock().then(->
+        console.log('unlocked')
+        setTimeout(->
+          lock.lock('test').then(->
+            console.log('locked')
+            lock.unlock().then(->
+              console.log('unlocked')
+              testComplete()
+            )
+          )
+        , 3000)
+      );
+    ).catch((ex) ->
+      testComplete(ex);
+    )
 
   it "can get an unlocked lock and lock it", (testComplete) ->
     @timeout 10000
