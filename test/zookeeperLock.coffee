@@ -7,7 +7,7 @@ zookeeper = require('node-zookeeper-client')
 
 
 #todo: set this to the path to your zkServer command to run tests
-zkServerCommandPath = '~/Downloads/zookeeper-3.4.6/bin/zkServer.sh'
+zkServerCommandPath = 'zkServer.sh'
 
 # todo: set this to the address of your zk server if non-standard
 zkServer = 'localhost:2181'
@@ -20,7 +20,6 @@ zkClient = zookeeper.createClient(
     retries: 0
   }
 )
-
 
 simpleExec = (cmd, done) ->
   exec(cmd, (err, stdout, stderr) ->
@@ -77,6 +76,9 @@ describe 'Zookeeper lock', ->
   it "can lock when nothing holds the lock", (testComplete) ->
     @timeout 10000
     ZookeeperLock.lock('test').then((lock) ->
+      lock.signal.on('lost', ->
+        testComplete(new Error('failed, lock should not have been lost'))
+      )
       lock.unlock().then(->
         testComplete();
       );
@@ -91,6 +93,9 @@ describe 'Zookeeper lock', ->
       lock = ZookeeperLock.lockFactory()
 
       lock.lock('test').then(->
+        lock.signal.on('lost', ->
+          testComplete(new Error('failed, lock should not have been lost'))
+        )
         return lock.unlock()
       ).then(->
         testComplete()
@@ -103,8 +108,14 @@ describe 'Zookeeper lock', ->
   it "can not acquire a lock when something else holds it until it is released", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
+      lock.signal.on('lost', ->
+        testComplete(new Error('failed, lock should not have been lost'))
+      )
       isUnlocked = false
       ZookeeperLock.lock('test').then((lock2) ->
+        lock2.signal.on('lost', ->
+          testComplete(new Error('failed, lock should not have been lost'))
+        )
         expect(isUnlocked).to.be.true
         return lock2.unlock()
       ).then(->
@@ -123,23 +134,16 @@ describe 'Zookeeper lock', ->
   it "does not surrender the lock on disconnect if session does not expire", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
-      console.log('locked')
       lock.signal.on('lost', ->
-        console.log('failed')
         testComplete(new Error('failed, lock should not have been lost'))
       )
 
       setTimeout(->
-        console.log('stopping')
         simpleExec(zkServerCommandPath + ' stop', ->
-          console.log('stopped')
           setTimeout(->
-            console.log('starting')
             simpleExec(zkServerCommandPath + ' start', ->
-              console.log('started')
               setTimeout(->
                 lock.unlock().then(->
-                  console.log('unlocked')
                   testComplete()
                 )
               , 2000)
@@ -153,7 +157,6 @@ describe 'Zookeeper lock', ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
       lock.signal.on('lost', ->
-        console.log('lost')
         testComplete()
       )
 
