@@ -29,7 +29,7 @@ path will be of the form `locks/foo/bar/baz`.
 ### constructor
 usage: 
 ```
-  var lock = new ZookeeperLock(config);
+	var lock = new ZookeeperLock(config);
   
 ```
 
@@ -42,23 +42,36 @@ Initialize a global configuration for zookeeper locks.
 
 #### lockFactory
 usage: 
-```var lock = ZookeeperLock.lockFactory();
-   lock.lock('key').then(function() {
-      ... do stuff
-   });
+```
+	var lock = ZookeeperLock.lockFactory();
 ```
 
 #### lock
 usage:
 ```
-  ZookeeperLock.lock('key').then(function (lock) {
-    ... do stuff
-  });
-
+	ZookeeperLock.lock('key').then(function (lock) {
+    	... do stuff
+  	});
+```
 
 ### Instance methods
 #### lock
-_todo_
+usage:
+```
+    var lock = ZookeeperLock.lockFactory();
+    lock.lock('key').then(function() {
+    	... do stuff
+  	});
+```
 
 #### unlock
-_todo_
+usage;
+```
+    var lock = ZookeeperLock.lockFactory();
+    lock.lock('key').then(function() {
+    	... do stuff
+    	lock.unlock().then(function () {
+    	    ... 
+    	});
+    });
+```
