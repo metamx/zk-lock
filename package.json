@@ -1,0 +1,28 @@
+{
+  "name": "node-zookeeper-lock",
+  "version": "0.0.1",
+  "description": "A distributed lock using zookeeper",
+  "license": "ISC",
+  "dependencies": {
+    "locators": "^0.3.8",
+    "q": "^1.4.1",
+    "node-zookeeper-client": "^0.2.2"
+  },
+  "devDependencies": {
+    "chai": "^3.4.1",
+    "coffee-script": "^1.10.0",
+    "dts-bundle": "^0.3.0",
+    "grunt": "^0.4.5",
+    "grunt-cli": "^0.1.13",
+    "grunt-contrib-copy": "^0.8.2",
+    "grunt-contrib-watch": "^0.6.1",
+    "grunt-ts": "^5.2.0",
+    "grunt-tsd": "^0.2.0-beta.1",
+    "grunt-tslint": "^3.0.0",
+    "mocha": "^2.3.4",
+    "nock": "^3.3.2",
+    "tsd": "^0.6.5",
+    "tslint": "^3.1.1",
+    "typescript": "^1.7.3"
+  }
+}
