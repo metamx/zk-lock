@@ -7,7 +7,9 @@ The library exposes a single class, `ZookeeperLock` which is both the lock objec
 initializing the configuration and acquiring locks which are already locked.
 
 All locks are stored in a top level zookeeper folder `locks/`, can have an optional path prefix, and take a key argument
-which indicates the resource that should be locked.
+which indicates the resource that should be locked. 
+
+Locks must be explicitly released with the `unlock` method in order to allow other processes to obtain the lock. `unlock` will also close the zookeeper connection.
 
 ## Configuration
 `serverLocator: () => Promise<any>` serverLocator is a locator library such as [locators](https://github.com/metamx/locators),
@@ -72,6 +74,20 @@ usage;
     	... do stuff
     	lock.unlock().then(function () {
     	    ... 
+    	});
+    });
+```
+
+### Session timeouts
+Due to the nature of zookeeper, this locking strategy is susceptible to a situation when `sessionTimeout` occurs that a lock holder can still think that they own the lock, but the key has been lost on the zookeeper server. To handle this, `ZookeeperLock` exposes a `signal` property that emits a `lost` event when a `sessionTimeout` occurs, which MUST be handled by the lock holder to terminate execution.
+
+usage:
+
+```
+    var lock = ZookeeperLock.lockFactory();
+    lock.lock('key').then(function() {
+    	lock.signal.on('lost', function () {
+    		... handle losing the lock, i.e. restart locking cycle.
     	});
     });
 ```
