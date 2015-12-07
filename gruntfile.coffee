@@ -5,6 +5,7 @@ module.exports = (grunt) ->
   grunt.loadNpmTasks('grunt-ts')
   grunt.loadNpmTasks('grunt-tslint')
   grunt.loadNpmTasks('grunt-tsd')
+  grunt.loadNpmTasks('dts-generator')
 
   config =
     ts:
@@ -41,6 +42,15 @@ module.exports = (grunt) ->
           latest: true
           config: 'tsd.json'
 
+    dtsGenerator:
+      options:
+        name: 'zk-lock'
+        baseDir: 'src/'
+        out: 'build/zk-lock.d.ts'
+      default:
+        src: [ 'src/**/*.ts' ]
+
+
 
     watch:
       typescripts:
@@ -55,12 +65,14 @@ module.exports = (grunt) ->
   grunt.registerTask 'default', [
     'tsd:load',
     'tslint',
-    'ts:build'
+    'ts:build',
+    'dtsGenerator'
   ]
 
   grunt.registerTask 'watch-compile', [
     'tslint',
-    'ts:build'
+    'ts:build',
+    'dtsGenerator'
   ]
 
   return
