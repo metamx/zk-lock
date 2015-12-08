@@ -1,5 +1,5 @@
 {
-  "name": "node-zookeeper-lock",
+  "name": "zk-lock",
   "version": "0.0.1",
   "description": "A distributed lock using zookeeper",
   "license": "ISC",
