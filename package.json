@@ -29,6 +29,7 @@
   "scripts": {
     "build": "./node_modules/.bin/grunt",
     "test": "./node_modules/.bin/mocha",
-    "debugtest": "NODE_DEBUG=zk-lock ./node_modules/.bin/mocha"
+    "debugtest": "NODE_DEBUG=zk-lock ./node_modules/.bin/mocha",
+    "prepublish": "node_modules/.bin/grunt"
   }
 }
