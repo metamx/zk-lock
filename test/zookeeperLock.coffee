@@ -190,7 +190,7 @@ describe 'Zookeeper lock', ->
           testComplete(new Error('did not timeout'))
         )
       ).catch((err)->
-        expect(err.message).to.equal('Timed out after 100 ms')
+        expect(err.message).to.equal('timeout')
         testComplete()
       )
 

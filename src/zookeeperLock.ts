@@ -128,7 +128,7 @@ export class ZookeeperLock {
 
         debuglog(`try locking ${key} at ${path}`);
 
-         var p = Promise<any>((resolve, reject) => {
+        return Promise<any>((resolve, reject) => {
              var timedOut = false;
              if (timeout) {
                  setTimeout(() => {
@@ -160,18 +160,14 @@ export class ZookeeperLock {
                 resolve(true);
             }).catch((err) => {
                 if (timedOut) {
-                    this.disconnect();
+                    this.disconnect().then(() => {
+                        reject(err);
+                    });
                 } else {
                     reject(err);
                 }
             });
         });
-
-        if (timeout) {
-            p = p.timeout(timeout);
-        }
-
-        return p;
     };
 
     public unlock = () : Promise<any> => {
