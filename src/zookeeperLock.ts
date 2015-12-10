@@ -122,32 +122,56 @@ export class ZookeeperLock {
         return this.connect(this.config.spinDelay);
     };
 
-    public lock = (key : string) : Promise<any> => {
+    public lock = (key : string, timeout? : number) : Promise<any> => {
         var path = `/locks/${this.config.pathPrefix ? this.config.pathPrefix + '/' : '' }`;
         var nodePath = `${path}${key}`;
 
         debuglog(`try locking ${key} at ${path}`);
 
-        return Promise<any>((resolve, reject) => {
+         var p = Promise<any>((resolve, reject) => {
+             var timedOut = false;
+             if (timeout) {
+                 setTimeout(() => {
+                     timedOut = true;
+                 }, timeout);
+             }
             this.connect()
-                .then(() => {
-                    debuglog(`making lock at ${nodePath}`);
-                    return this.makeLockDir(nodePath);
-                })
-                .then(() => {
-                    return this.initLock(nodePath);
-                })
-                .then(() => {
-                    debuglog(`waiting for lock at ${nodePath}`);
-                    return this.waitForLock(nodePath);
-                })
-                .then((lock : ZookeeperLock) => {
-                    debuglog('lock acquired');
-                    resolve(true);
-                }).catch((err) => {
+            .then(() => {
+                if (timedOut) { throw new Error('timeout'); }
+
+                debuglog(`making lock at ${nodePath}`);
+                return this.makeLockDir(nodePath);
+            })
+            .then(() => {
+                if (timedOut) { throw new Error('timeout'); }
+
+                return this.initLock(nodePath);
+            })
+            .then(() => {
+                if (timedOut) { throw new Error('timeout'); }
+
+                debuglog(`waiting for lock at ${nodePath}`);
+                return this.waitForLock(nodePath);
+            })
+            .then((lock : ZookeeperLock) => {
+                if (timedOut) { throw new Error('timeout'); }
+
+                debuglog('lock acquired');
+                resolve(true);
+            }).catch((err) => {
+                if (timedOut) {
+                    this.disconnect();
+                } else {
                     reject(err);
-                });
+                }
+            });
         });
+
+        if (timeout) {
+            p = p.timeout(timeout);
+        }
+
+        return p;
     };
 
     public unlock = () : Promise<any> => {
@@ -162,10 +186,43 @@ export class ZookeeperLock {
 
                     this.disconnect().then(() => {
                         this.signal.removeAllListeners();
-                        resolve(true);
+                        // wait for session timeout for ephemeral lock to go away
+                        setTimeout(() => {
+                            resolve(true);
+                        }, this.config.sessionTimeout);
                     });
                 }
             );
+        });
+    };
+
+    public checkLocked = (key : string) : Promise<boolean> => {
+        return Promise<boolean>((resolve, reject) => {
+            this.connect()
+                .then(() => {
+                    var path = `/locks/${this.config.pathPrefix ? this.config.pathPrefix + '/' : '' }`;
+                    var nodePath = `${path}${key}`;
+                    this.client.getChildren(
+                        nodePath,
+                        null,
+                        (err, locks, stat) => {
+                            if (err) {
+                                reject(err);
+                            }
+
+                            var filtered = locks.filter((l) => {
+                                return l !== null && l.indexOf('-') > -1;
+                            });
+
+                            debuglog(JSON.stringify(filtered));
+
+                            if (filtered && filtered.length > 0) {
+                                resolve(true);
+                            } else {
+                                reject(false);
+                            }
+                        });
+                });
         });
     };
 
@@ -260,15 +317,38 @@ export class ZookeeperLock {
         return new ZookeeperLock(ZookeeperLock.config);
     };
 
-    public static lock = (key) : Promise<ZookeeperLock> => {
+    public static lock = (key : string, timeout? : number) : Promise<ZookeeperLock> => {
         return Promise<ZookeeperLock>((resolve, reject) => {
             var zkLock = new ZookeeperLock(ZookeeperLock.config);
 
-            zkLock.lock(key)
+            zkLock.lock(key, timeout)
                 .then(() => {
                     resolve(zkLock);
                 }).catch((err) => {
                     reject(err);
+                });
+        });
+    };
+
+    public static checkLock = (key : string) : Promise<boolean> => {
+
+
+        return Promise<boolean>((resolve, reject) => {
+            var zkLock = new ZookeeperLock(ZookeeperLock.config);
+
+            zkLock.checkLocked(key)
+                .then((result) => {
+                    if (result) {
+                        resolve(true);
+                    } else {
+                        resolve(false);
+                    }
+                })
+                .catch((err) => {
+                    reject(err);
+                })
+                .finally(() => {
+                    zkLock.disconnect();
                 });
         });
     };

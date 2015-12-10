@@ -93,12 +93,9 @@ describe 'Zookeeper lock', ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       lock.unlock().then(->
-        console.log('unlocked')
         setTimeout(->
           lock.lock('test').then(->
-            console.log('locked')
             lock.unlock().then(->
-              console.log('unlocked')
               testComplete()
             )
           )
@@ -151,6 +148,60 @@ describe 'Zookeeper lock', ->
         )
       ,8000)
     )
+
+  it "can check if a lock exists for a key", (testComplete) ->
+    @timeout 20000
+    ZookeeperLock.lock('test')
+    .then((lock) ->
+      lock.signal.on('lost', ->
+        testComplete(new Error('failed, lock should not have been lost'))
+      )
+      ZookeeperLock.checkLock('test')
+      .then((result) ->
+        expect(result).to.be.true
+        return lock.unlock()
+      ).then(->
+        setTimeout(->
+          ZookeeperLock.checkLock('test')
+          .then((result2) ->
+            expect(result2).to.be.false
+            testComplete()
+          ).catch((err) ->
+            testComplete(err)
+          )
+        , 1000)
+      ).catch((err)->
+        testComplete(err)
+      )
+    ).catch((err) ->
+      testComplete(err)
+    )
+
+  it "can timeout if given a timeout to wait for a lock", (testComplete) ->
+    @timeout 20000
+    ZookeeperLock.lock('test')
+    .then((lock) ->
+      lock.signal.on('lost', ->
+        testComplete(new Error('failed, lock should not have been lost'))
+      )
+      ZookeeperLock.lock('test', 100)
+      .then((lock2)->
+        lock2.unlock().then(->
+          testComplete(new Error('did not timeout'))
+        )
+      ).catch((err)->
+        expect(err.message).to.equal('Timed out after 100 ms')
+        testComplete()
+      )
+
+      setTimeout(->
+        lock.unlock().then(->
+        )
+      ,1000)
+    ).catch((err) ->
+      testComplete(err)
+    )
+
 
   it "does not surrender the lock on disconnect if session does not expire", (testComplete) ->
     @timeout 20000
