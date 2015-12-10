@@ -47,7 +47,7 @@ module.exports = (grunt) ->
         name: 'zk-lock'
         baseDir: 'src/'
         out: 'build/zk-lock.d.ts'
-        main: 'ZookeeperLock'
+        main: 'zk-lock/zookeeperLock'
       default:
         src: [ 'src/**/*.ts' ]
 
