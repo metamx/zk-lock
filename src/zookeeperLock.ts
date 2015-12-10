@@ -35,6 +35,8 @@ export class ZookeeperLock {
         if (this.config.retries == null) {
             this.config.retries = 3;
         }
+
+        debuglog(JSON.stringify(this.config));
     }
 
     private createClient() : Promise<any> {
@@ -45,7 +47,11 @@ export class ZookeeperLock {
                 resolve(true);
             } else {
                 this.config.serverLocator().then((location) => {
-                    var server = location.host + ":" + location.port;
+                    var server = location.host;
+                    if (location.port) {
+                        server += ":" + location.port;
+                    }
+                    debuglog(server);
                     var client = zk.createClient(server, {
                         sessionTimeout: this.config.sessionTimeout,
                         spinDelay: this.config.spinDelay,

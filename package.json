@@ -30,5 +30,6 @@
     "test": "node_modules/.bin/mocha",
     "debugtest": "NODE_DEBUG=zk-lock ./node_modules/.bin/mocha",
     "prepublish": "node_modules/.bin/grunt"
-  }
+  },
+  "main": "build/zookeeperLock.js"
 }
