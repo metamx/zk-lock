@@ -149,7 +149,7 @@ describe 'Zookeeper lock', ->
       ,8000)
     )
 
-  it "can check if a lock exists for a key", (testComplete) ->
+  it "can check if a lock exists for a key when lock exists", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test')
     .then((lock) ->
@@ -173,6 +173,16 @@ describe 'Zookeeper lock', ->
       ).catch((err)->
         testComplete(err)
       )
+    ).catch((err) ->
+      testComplete(err)
+    )
+
+  it "can check if a lock exists for a key when lock doesn't exist", (testComplete) ->
+    @timeout 20000
+    ZookeeperLock.checkLock('noooooooo')
+    .then((result) ->
+      expect(result).to.be.false
+      testComplete()
     ).catch((err) ->
       testComplete(err)
     )
