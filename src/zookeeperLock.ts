@@ -211,15 +211,18 @@ export class ZookeeperLock {
                             if (err) {
                                 reject(err);
                             }
+                            if (locks) {
+                                var filtered = locks.filter((l) => {
+                                    return l !== null && l.indexOf('-') > -1;
+                                });
 
-                            var filtered = locks.filter((l) => {
-                                return l !== null && l.indexOf('-') > -1;
-                            });
+                                debuglog(JSON.stringify(filtered));
 
-                            debuglog(JSON.stringify(filtered));
-
-                            if (filtered && filtered.length > 0) {
-                                resolve(true);
+                                if (filtered && filtered.length > 0) {
+                                    resolve(true);
+                                } else {
+                                    reject(false);
+                                }
                             } else {
                                 reject(false);
                             }
