@@ -1,6 +1,6 @@
 {
   "name": "zk-lock",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "A distributed lock using zookeeper",
   "license": "ISC",
   "dependencies": {
