@@ -184,7 +184,7 @@ describe 'Zookeeper lock', ->
       expect(result).to.be.false
       testComplete()
     ).catch((err) ->
-      testComplete(err)
+      testComplete()
     )
 
   it "can timeout if given a timeout to wait for a lock", (testComplete) ->
@@ -194,20 +194,17 @@ describe 'Zookeeper lock', ->
       lock.signal.on('lost', ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
-      ZookeeperLock.lock('test', 100)
+      ZookeeperLock.lock('test', 5000)
       .then((lock2)->
         lock2.unlock().then(->
           testComplete(new Error('did not timeout'))
         )
       ).catch((err)->
         expect(err.message).to.equal('timeout')
-        testComplete()
-      )
-
-      setTimeout(->
         lock.unlock().then(->
+          testComplete()
         )
-      ,1000)
+      )
     ).catch((err) ->
       testComplete(err)
     )
