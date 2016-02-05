@@ -232,7 +232,7 @@ export class ZookeeperLock {
                         null,
                         (err, locks, stat) => {
                             if (err) {
-                                debuglog(err);
+                                debuglog(err.message);
                                 reject(err);
                             }
                             if (locks) {
@@ -256,7 +256,7 @@ export class ZookeeperLock {
                     if (err.indexOf('NO_NODE') > -1 ) {
                         resolve(false);
                     } else {
-                        debuglog(err);
+                        debuglog(err.message);
                         reject(err);
                     }
                 });
@@ -322,9 +322,13 @@ export class ZookeeperLock {
                 try {
                     if (err || !locks || locks.length === 0) {
                         debuglog('failed to get children:' + err);
-                        this.unlock().then(() => {
+                        if (this.connected) {
+                            this.unlock().then(() => {
+                                reject(new Error(`Failed to get children node: ${path} due to: ${err}.`));
+                            });
+                        } else {
                             reject(new Error(`Failed to get children node: ${path} due to: ${err}.`));
-                        });
+                        }
                         return;
                     }
 
@@ -349,7 +353,7 @@ export class ZookeeperLock {
                         resolve(true);
                     }
                 } catch (ex) {
-                    debuglog(ex);
+                    debuglog(ex.message);
                     reject(ex);
                 }
             }
