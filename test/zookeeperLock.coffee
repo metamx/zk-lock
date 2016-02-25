@@ -38,6 +38,7 @@ describe 'sanity tests', ->
     seq = ZookeeperLock.getSequenceNumber('lock-1')
     expect(seq).to.equal(1)
 
+
 locator = simple()(zkServer)
 config = {
   serverLocator: locator,

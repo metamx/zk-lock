@@ -221,6 +221,14 @@ export class ZookeeperLock {
         });
     };
 
+    private filterLocks = (children : Array<string>) : Array<string> => {
+        var filtered = children.filter((l) => {
+            return l !== null && l.indexOf('lock-') === 0;
+        });
+
+        return filtered;
+    };
+
     public checkLocked = (key : string) : Promise<boolean> => {
         return Promise<boolean>((resolve, reject) => {
             this.connect()
@@ -236,9 +244,8 @@ export class ZookeeperLock {
                                 reject(err);
                             }
                             if (locks) {
-                                var filtered = locks.filter((l) => {
-                                    return l !== null && l.indexOf('lock-') === 0;
-                                });
+
+                                var filtered = this.filterLocks(locks);
 
                                 debuglog(JSON.stringify(filtered));
 
@@ -332,13 +339,13 @@ export class ZookeeperLock {
                         return;
                     }
 
-                    var sequence = locks.filter((l) => {
-                        return l !== null && l.indexOf('-') > -1;
-                    }).map((l) => {
-                        return ZookeeperLock.getSequenceNumber(l);
-                    }).filter((l) => {
-                        return l >= 0;
-                    });
+                    var sequence = this.filterLocks(locks)
+                        .map((l) => {
+                            return ZookeeperLock.getSequenceNumber(l);
+                        })
+                        .filter((l) => {
+                            return l >= 0;
+                        });
 
                     debuglog(JSON.stringify(sequence));
 
