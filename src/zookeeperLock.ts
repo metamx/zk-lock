@@ -237,7 +237,7 @@ export class ZookeeperLock {
                             }
                             if (locks) {
                                 var filtered = locks.filter((l) => {
-                                    return l !== null && l.indexOf('-') > -1;
+                                    return l !== null && l.indexOf('lock-') === 0;
                                 });
 
                                 debuglog(JSON.stringify(filtered));
