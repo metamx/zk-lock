@@ -39,6 +39,10 @@ export class ZookeeperLock {
         debuglog(JSON.stringify(this.config));
     }
 
+    /**
+     * create a zookeeper client
+     * @returns {Promise<any>}
+     */
     private createClient() : Promise<any> {
         debuglog('creating client');
         return Promise<any>((resolve, reject) => {
@@ -199,7 +203,7 @@ export class ZookeeperLock {
         });
     };
 
-    public unlock = () : Promise<any> => {
+    public unlock = (destroy : boolean = true) : Promise<any> => {
         return Promise<any>((resolve, reject) => {
             this.client.remove(
                 `${this.path}/${this.key}`,
@@ -209,15 +213,35 @@ export class ZookeeperLock {
                         return;
                     }
 
-                    this.disconnect().then(() => {
-                        this.signal.removeAllListeners();
-                        // wait for session timeout for ephemeral lock to go away
-                        setTimeout(() => {
-                            resolve(true);
-                        }, this.config.sessionTimeout);
+                    var destroyFunc : () => Promise<any>;
+
+                    if (destroy) {
+                        destroyFunc = this.destroy;
+                    } else {
+                        destroyFunc = this.disconnect;
+                    }
+
+                    destroyFunc().then(() => {
+                        resolve(true);
+                    }).catch(() => {
+                        reject(false);
                     });
                 }
             );
+        });
+    };
+
+    public destroy = () : Promise<boolean> => {
+        return Promise<any>((resolve, reject) => {
+            this.disconnect().then(() => {
+                this.signal.removeAllListeners();
+                // wait for session timeout for ephemeral lock to go away
+                setTimeout(() => {
+                    resolve(true);
+                }, this.config.sessionTimeout);
+            }).catch(() => {
+                reject(false);
+            });
         });
     };
 
@@ -228,6 +252,7 @@ export class ZookeeperLock {
 
         return filtered;
     };
+
 
     public checkLocked = (key : string) : Promise<boolean> => {
         return Promise<boolean>((resolve, reject) => {
