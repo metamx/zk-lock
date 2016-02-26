@@ -23,6 +23,10 @@ export class ZookeeperLock {
     private connected : boolean = false;
     private static config : Configuration = null;
 
+    /**
+     * create a new zk lock
+     * @param config
+     */
     constructor(config : Configuration) {
         this.signal = new EventEmitter();
         this.config = config;
@@ -40,7 +44,8 @@ export class ZookeeperLock {
     }
 
     /**
-     * create a zookeeper client
+     * create a zookeeper client which powers the lock, done when creating a new lock
+     * or zk connection expires
      * @returns {Promise<any>}
      */
     private createClient() : Promise<any> {
@@ -83,6 +88,11 @@ export class ZookeeperLock {
     };
 
 
+    /**
+     * connect underlying zookeeper client, with optional delay
+     * @param delay
+     * @returns {Promise<any>}
+     */
     public connect = (delay : number = 0) : Promise<any> => {
         debuglog('connecting...');
         return Promise<any>((resolve, reject) => {
@@ -117,6 +127,10 @@ export class ZookeeperLock {
         });
     };
 
+    /**
+     * disconnect zookeeper client, and remove all event listeners from it
+     * @returns {Promise<any>}
+     */
     public disconnect = () : Promise<any> => {
         debuglog('disconnecting...');
         return Promise<any>((resolve, reject) => {
@@ -134,12 +148,24 @@ export class ZookeeperLock {
         });
     };
 
+    /**
+     * internal method to reconnect, wired up to disconnect event of zk client
+     * @returns {Promise<any>}
+     */
     private reconnect = () : Promise<any> => {
         debuglog('reconnecting...');
         this.connected = false;
         return this.connect(this.config.spinDelay);
     };
 
+    /**
+     * wait for a lock to become free for a given key and acquire it, with an optional
+     * timeout upon which the lock will fail. if not currently connected to zookeeper,
+     * this will connect, and on timeout, the lock will disconnect from zookeeper
+     * @param key
+     * @param timeout
+     * @returns {Promise<any>}
+     */
     public lock = (key : string, timeout? : number) : Promise<any> => {
         var path = `/locks/${this.config.pathPrefix ? this.config.pathPrefix + '/' : '' }`;
         var nodePath = `${path}${key}`;
@@ -203,6 +229,13 @@ export class ZookeeperLock {
         });
     };
 
+    /**
+     * unlock a lock, removing the key from zookeeper, and disconnecting
+     * the zk client and all event listeners. By default this also destroys
+     * the lock and removes event listeners on the locks 'signals' event
+     * @param destroy - remove listeners from lock.signal in addition to disconnecting zk client on completion, defaults to true
+     * @returns {Promise<any>}
+     */
     public unlock = (destroy : boolean = true) : Promise<any> => {
         return Promise<any>((resolve, reject) => {
             this.client.remove(
@@ -231,6 +264,10 @@ export class ZookeeperLock {
         });
     };
 
+    /**
+     * destroy the lock, disconnect and remove all listeners from the 'signal' event emitter
+     * @returns {Promise<any>}
+     */
     public destroy = () : Promise<boolean> => {
         return Promise<any>((resolve, reject) => {
             this.disconnect().then(() => {
@@ -245,6 +282,12 @@ export class ZookeeperLock {
         });
     };
 
+    /**
+     * method to filter zk node children to contain only those that are prefixed with 'lock-',
+     * which are assumed to be created by this library
+     * @param children
+     * @returns {string[]|T[]}
+     */
     private filterLocks = (children : Array<string>) : Array<string> => {
         var filtered = children.filter((l) => {
             return l !== null && l.indexOf('lock-') === 0;
@@ -254,6 +297,11 @@ export class ZookeeperLock {
     };
 
 
+    /**
+     * check if a lock exists, connecting to zk client if not connected
+     * @param key
+     * @returns {Promise<boolean>}
+     */
     public checkLocked = (key : string) : Promise<boolean> => {
         return Promise<boolean>((resolve, reject) => {
             this.connect()
@@ -295,6 +343,11 @@ export class ZookeeperLock {
         });
     };
 
+    /**
+     * make the zk node that will hold the locks if it doens't already exist
+     * @param path
+     * @returns {Promise<any>}
+     */
     private makeLockDir = (path) : Promise<any> => {
         return Promise<any>((resolve, reject) => {
             this.client.mkdirp(
@@ -310,6 +363,13 @@ export class ZookeeperLock {
         });
     };
 
+
+    /**
+     * create a lock as a ephemeral sequential child node of the supplied path, prefixed with 'lock-',
+     * to state intent to acquire a lock
+     * @param path
+     * @returns {Promise<any>}
+     */
     private initLock = (path) : Promise<any> => {
         return Promise<any>((resolve, reject) => {
             this.client.create(
@@ -332,6 +392,11 @@ export class ZookeeperLock {
         });
     };
 
+    /**
+     * loop until lock is available or timeout occurs
+     * @param path
+     * @returns {Promise<any>}
+     */
     private waitForLock = (path) : Promise<any> => {
 
         return Promise<any>((resolve, reject) => {
@@ -342,6 +407,16 @@ export class ZookeeperLock {
         });
     };
 
+    /**
+     * helper method that does the grunt of the work of waiting for the lock. This method does 2 things, first
+     * reads the lock path to compare the locks key to the other keys that are children of the path. if this locks
+     * sequence number is the lowest, the lock has been aquired. If not, this method reactively responds to
+     * children changed events from the zk-client for the path we want to aqcuire the lock for, and recurses to
+     * repeat this process until the sequence is the lowest
+     * @param resolve
+     * @param reject
+     * @param path
+     */
     private waitForLockHelper = (resolve, reject, path) : void => {
         debuglog('wait loop.');
         this.client.getChildren(
@@ -393,14 +468,28 @@ export class ZookeeperLock {
     };
 
 
+    /**
+     * set static config to use by static helper methods
+     * @param config
+     */
     public static initialize = (config : any) : void => {
         ZookeeperLock.config = config;
     };
 
+    /**
+     * create a new lock using the static stored config
+     * @returns {ZookeeperLock}
+     */
     public static lockFactory = () : ZookeeperLock => {
         return new ZookeeperLock(ZookeeperLock.config);
     };
 
+    /**
+     * create a new lock and lock it using the static stored config, with optional timeout
+     * @param key
+     * @param timeout
+     * @returns {Promise<ZookeeperLock>}
+     */
     public static lock = (key : string, timeout? : number) : Promise<ZookeeperLock> => {
         return Promise<ZookeeperLock>((resolve, reject) => {
             var zkLock = new ZookeeperLock(ZookeeperLock.config);
@@ -414,6 +503,11 @@ export class ZookeeperLock {
         });
     };
 
+    /**
+     * check if a lock exists for a path using the static config
+     * @param key
+     * @returns {Promise<boolean>}
+     */
     public static checkLock = (key : string) : Promise<boolean> => {
 
 
@@ -438,7 +532,12 @@ export class ZookeeperLock {
     };
 
 
-    private static getSequenceNumber = (path : string) => {
+    /**
+     * get the numeric part of the lock key
+     * @param path
+     * @returns {number}
+     */
+    private static getSequenceNumber = (path : string) : number => {
         return parseInt(path.replace('lock-', ''), 10);
     };
 }
