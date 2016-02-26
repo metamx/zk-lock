@@ -90,7 +90,7 @@ export class ZookeeperLock {
 
     /**
      * connect underlying zookeeper client, with optional delay
-     * @param delay
+     * @param [delay=0]
      * @returns {Promise<any>}
      */
     public connect = (delay : number = 0) : Promise<any> => {
@@ -163,7 +163,7 @@ export class ZookeeperLock {
      * timeout upon which the lock will fail. if not currently connected to zookeeper,
      * this will connect, and on timeout, the lock will disconnect from zookeeper
      * @param key
-     * @param timeout
+     * @param [timeout]
      * @returns {Promise<any>}
      */
     public lock = (key : string, timeout? : number) : Promise<any> => {
@@ -233,7 +233,8 @@ export class ZookeeperLock {
      * unlock a lock, removing the key from zookeeper, and disconnecting
      * the zk client and all event listeners. By default this also destroys
      * the lock and removes event listeners on the locks 'signals' event
-     * @param destroy - remove listeners from lock.signal in addition to disconnecting zk client on completion, defaults to true
+     * @param [destroy=true] - remove listeners from lock.signal in addition
+     * to disconnecting zk client on completion, defaults to true
      * @returns {Promise<any>}
      */
     public unlock = (destroy : boolean = true) : Promise<any> => {
