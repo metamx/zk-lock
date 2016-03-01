@@ -75,6 +75,7 @@ export class ZookeeperLock {
                         if (this.client) {
                             this.client.removeAllListeners();
                             this.signal.removeAllListeners();
+                            this.client = null;
                         }
                         this.createClient();
                     });
@@ -109,6 +110,8 @@ export class ZookeeperLock {
                             return this.connect();
                         }).then(() => {
                             resolve(true);
+                        }).catch((err) => {
+                            reject(err);
                         });
 
                         return;
@@ -145,6 +148,10 @@ export class ZookeeperLock {
                 resolve(true);
             });
             this.client.close();
+
+            setTimeout(() => {
+                resolve(true);
+            }, 5000);
         });
     };
 
@@ -179,41 +186,22 @@ export class ZookeeperLock {
                     debuglog('timed out, cancelling lock.');
                     timedOut = true;
                     this.signal.emit('timeout');
+                    reject(new Error('timeout'));
                  }, timeout);
             }
             this.connect()
             .then(() => {
-                if (timedOut) {
-                    debuglog('timed out after connect');
-                    throw new Error('timeout');
-                }
-
                 debuglog(`making lock at ${nodePath}`);
                 return this.makeLockDir(nodePath);
             })
             .then(() => {
-                if (timedOut) {
-                    debuglog('timed out after make lock dir');
-                    throw new Error('timeout');
-                }
-
                 return this.initLock(nodePath);
             })
             .then(() => {
-                if (timedOut) {
-                    debuglog('timed out after init lock');
-                    throw new Error('timeout');
-                }
-
                 debuglog(`waiting for lock at ${nodePath}`);
                 return this.waitForLock(nodePath);
             })
             .then((lock : ZookeeperLock) => {
-                if (timedOut) {
-                    debuglog('timed out waiting for lock');
-                    throw new Error('timeout');
-                }
-
                 debuglog('lock acquired');
                 resolve(true);
             }).catch((err) => {
@@ -221,6 +209,8 @@ export class ZookeeperLock {
                 if (timedOut) {
                     this.disconnect().then(() => {
                         reject(err);
+                    }).catch((err2) => {
+                        reject(err2);
                     });
                 } else {
                     reject(err);
@@ -382,7 +372,7 @@ export class ZookeeperLock {
                         reject(new Error(`Failed to create node: ${lockPath} due to: ${err}.`));
                         return;
                     }
-                    debuglog(`lock: ${path}, ${lockPath.replace(path + '/','')}`);
+                    debuglog(`lock: ${path}, ${lockPath.replace(path + '/', '')}`);
 
                     this.path = path;
                     this.key = lockPath.replace(path + '/', '');
@@ -433,6 +423,8 @@ export class ZookeeperLock {
                         if (this.connected) {
                             this.unlock().then(() => {
                                 reject(new Error(`Failed to get children node: ${path} due to: ${err}.`));
+                            }).catch((err2) => {
+                                reject(err2);
                             });
                         } else {
                             reject(new Error(`Failed to get children node: ${path} due to: ${err}.`));
@@ -457,7 +449,7 @@ export class ZookeeperLock {
                         return Math.min(acc, elem);
                     }, mySeq);
 
-                    if (sequence.length === 0 || mySeq <= min) {
+                    if (mySeq === min) {
                         resolve(true);
                     }
                 } catch (ex) {
