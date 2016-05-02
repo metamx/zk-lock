@@ -492,6 +492,8 @@ export class ZookeeperLock {
                     resolve(zkLock);
                 }).catch((err) => {
                     reject(err);
+                }).finally(() => {
+                    zkLock.destroy();
                 });
         });
     };
@@ -519,7 +521,7 @@ export class ZookeeperLock {
                     reject(err);
                 })
                 .finally(() => {
-                    zkLock.disconnect();
+                    zkLock.destroy();
                 });
         });
     };
