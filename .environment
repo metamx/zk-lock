@@ -1,0 +1,2 @@
+#!/bin/bash
+export PATH="`pwd`/node/current/bin:`pwd`/node_modules/.bin:`pwd`/bin:$PATH" # make sure you are looking at the local node

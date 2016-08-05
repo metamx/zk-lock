@@ -12,8 +12,8 @@ which indicates the resource that should be locked.
 Locks must be explicitly released with the `unlock` method in order to allow other processes to obtain the lock. `unlock` will also close the zookeeper connection.
 
 ## Configuration
-`serverLocator: () => Promise<any>` serverLocator is a locator library such as [locators](https://github.com/metamx/locators),
-or any function which takes no arguments and can return a promise of a `Location` object that has properties `host` and `port` which specify
+`serverLocator: () => Promise<any>` serverLocator is a service discovery/location resolving library such as [locators](https://github.com/metamx/locators),
+or anything which implements a function which takes no arguments and can return a promise of a `Location` object that has properties `host` and `port` which specify
 where the zookeeper server can be discovered.
 
 `pathPrefix: string` This is a prefix to add to any key which is to be locked. Note: all locks will 
@@ -86,8 +86,15 @@ usage:
 ```
     var lock = ZookeeperLock.lockFactory();
     lock.lock('key').then(function() {
-    	lock.signal.on('lost', function () {
+    	lock.on('lost', function () {
     		... handle losing the lock, i.e. restart locking cycle.
     	});
     });
 ```
+
+
+## Development
+`npm run build` to compile.
+
+The `ZookeeperBeacon` test currently require a local installation of zookeeper to run successfully, specified
+by the `zkServerCommandPath` variable which is defined near the beginning of the tests.

@@ -1,20 +1,19 @@
 import { EventEmitter } from 'events';
-import { Promise } from 'q';
+import Promise = require('bluebird');
 import zk = require('node-zookeeper-client');
 import util = require('util');
+import { Locator } from 'locators';
 var debuglog = util.debuglog('zk-lock');
 
 export class Configuration {
-    serverLocator : () => Promise<any>;
+    serverLocator : Locator;
     pathPrefix : string;
     sessionTimeout : number;
     spinDelay : number;
     retries : number;
 }
 
-
-export class ZookeeperLock {
-    signal : EventEmitter;
+export class ZookeeperLock extends EventEmitter {
     path : string;
     key : string;
 
@@ -28,7 +27,7 @@ export class ZookeeperLock {
      * @param config
      */
     constructor(config : Configuration) {
-        this.signal = new EventEmitter();
+        super();
         this.config = config;
         if (this.config.sessionTimeout == null) {
             this.config.sessionTimeout = 15000;
@@ -50,7 +49,7 @@ export class ZookeeperLock {
      */
     private createClient() : Promise<any> {
         debuglog('creating client');
-        return Promise<any>((resolve, reject) => {
+        return new Promise<any>((resolve, reject) => {
             if (this.client != null) {
                 debuglog('client already created');
                 resolve(true);
@@ -71,10 +70,10 @@ export class ZookeeperLock {
 
                     this.client.once('expired', () => {
                         debuglog('expired');
-                        this.signal.emit('lost');
+                        this.emit('lost');
                         if (this.client) {
                             this.client.removeAllListeners();
-                            this.signal.removeAllListeners();
+                            this.removeAllListeners();
                             this.client = null;
                         }
                         this.createClient();
@@ -96,7 +95,7 @@ export class ZookeeperLock {
      */
     public connect = (delay : number = 0) : Promise<any> => {
         debuglog('connecting...');
-        return Promise<any>((resolve, reject) => {
+        return new Promise<any>((resolve, reject) => {
             setTimeout(() => {
                 try {
                     if (this.connected) {
@@ -136,7 +135,7 @@ export class ZookeeperLock {
      */
     public disconnect = () : Promise<any> => {
         debuglog('disconnecting...');
-        return Promise<any>((resolve, reject) => {
+        return new Promise<any>((resolve, reject) => {
             this.client.removeListener('disconnected', this.reconnect);
             this.client.once('disconnected', () => {
                 if (this.client) {
@@ -178,14 +177,14 @@ export class ZookeeperLock {
         var nodePath = `${path}${key}`;
         debuglog(`try locking ${key} at ${path}`);
 
-        return Promise<any>((resolve, reject) => {
+        return new Promise<any>((resolve, reject) => {
             var timedOut = false;
             if (timeout) {
                 debuglog('starting timeout');
                 setTimeout(() => {
                     debuglog('timed out, cancelling lock.');
                     timedOut = true;
-                    this.signal.emit('timeout');
+                    this.emit('timeout');
                     reject(new Error('timeout'));
                  }, timeout);
             }
@@ -228,7 +227,7 @@ export class ZookeeperLock {
      * @returns {Promise<any>}
      */
     public unlock = (destroy : boolean = true) : Promise<any> => {
-        return Promise<any>((resolve, reject) => {
+        return new Promise<any>((resolve, reject) => {
             this.client.remove(
                 `${this.path}/${this.key}`,
                 (err) => {
@@ -260,9 +259,9 @@ export class ZookeeperLock {
      * @returns {Promise<any>}
      */
     public destroy = () : Promise<boolean> => {
-        return Promise<any>((resolve, reject) => {
+        return new Promise<any>((resolve, reject) => {
             this.disconnect().then(() => {
-                this.signal.removeAllListeners();
+                this.removeAllListeners();
                 // wait for session timeout for ephemeral lock to go away
                 setTimeout(() => {
                     resolve(true);
@@ -294,7 +293,7 @@ export class ZookeeperLock {
      * @returns {Promise<boolean>}
      */
     public checkLocked = (key : string) : Promise<boolean> => {
-        return Promise<boolean>((resolve, reject) => {
+        return new Promise<boolean>((resolve, reject) => {
             this.connect()
                 .then(() => {
                     var path = `/locks/${this.config.pathPrefix ? this.config.pathPrefix + '/' : '' }`;
@@ -340,7 +339,7 @@ export class ZookeeperLock {
      * @returns {Promise<any>}
      */
     private makeLockDir = (path) : Promise<any> => {
-        return Promise<any>((resolve, reject) => {
+        return new Promise<any>((resolve, reject) => {
             this.client.mkdirp(
                 path,
                 (err) => {
@@ -362,7 +361,7 @@ export class ZookeeperLock {
      * @returns {Promise<any>}
      */
     private initLock = (path) : Promise<any> => {
-        return Promise<any>((resolve, reject) => {
+        return new Promise<any>((resolve, reject) => {
             this.client.create(
                 `${path}/lock-`,
                 new Buffer('lock'),
@@ -390,8 +389,8 @@ export class ZookeeperLock {
      */
     private waitForLock = (path) : Promise<any> => {
 
-        return Promise<any>((resolve, reject) => {
-            this.signal.once('timeout', () => {
+        return new Promise<any>((resolve, reject) => {
+            this.once('timeout', () => {
                reject(new Error('timeout'));
             });
             this.waitForLockHelper(resolve, reject, path);
@@ -484,7 +483,7 @@ export class ZookeeperLock {
      * @returns {Promise<ZookeeperLock>}
      */
     public static lock = (key : string, timeout? : number) : Promise<ZookeeperLock> => {
-        return Promise<ZookeeperLock>((resolve, reject) => {
+        return new Promise<ZookeeperLock>((resolve, reject) => {
             var zkLock = new ZookeeperLock(ZookeeperLock.config);
 
             zkLock.lock(key, timeout)
@@ -505,7 +504,7 @@ export class ZookeeperLock {
     public static checkLock = (key : string) : Promise<boolean> => {
 
 
-        return Promise<boolean>((resolve, reject) => {
+        return new Promise<boolean>((resolve, reject) => {
             var zkLock = new ZookeeperLock(ZookeeperLock.config);
 
             zkLock.checkLocked(key)

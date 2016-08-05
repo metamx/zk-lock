@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es5",
+        "sourceMap": true,
+        "sourceRoot": "src/",
+        "outDir": "build/",
+        "rootDir": "src/",
+        "declaration": true
+    },
+    "filesGlob": [
+        "src/**/*.ts",
+        "typings/index.d.ts",
+        "typings_local/*.ts"
+    ],
+    "files": [
+        "src/index.ts",
+        "src/zookeeperLock.ts",
+        "typings/index.d.ts",
+        "typings_local/locators.d.ts",
+        "typings_local/node-zookeeper-client.d.ts"
+    ]
+}
