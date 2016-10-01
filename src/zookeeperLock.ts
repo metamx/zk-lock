@@ -222,35 +222,39 @@ export class ZookeeperLock extends EventEmitter {
      * unlock a lock, removing the key from zookeeper, and disconnecting
      * the zk client and all event listeners. By default this also destroys
      * the lock and removes event listeners on the locks 'signals' event
-     * @param [destroy=true] - remove listeners from lock.signal in addition
+     * @param [destroy=true] - remove listeners from lock in addition
      * to disconnecting zk client on completion, defaults to true
      * @returns {Promise<any>}
      */
     public unlock = (destroy : boolean = true) : Promise<any> => {
         return new Promise<any>((resolve, reject) => {
-            this.client.remove(
-                `${this.path}/${this.key}`,
-                (err) => {
-                    if (err) {
-                        reject(new Error(`Failed to remove children node: ${this.path}/${this.key} due to: ${err}.`));
-                        return;
+            if (this.client) {
+                this.client.remove(
+                    `${this.path}/${this.key}`,
+                    (err) => {
+                        if (err && err.message.indexOf('NO_NODE') < 0) {
+                            reject(new Error(`Failed to remove children node: ${this.path}/${this.key} due to: ${err}.`));
+                            return;
+                        }
+
+                        var destroyFunc : () => Promise<any>;
+
+                        if (destroy) {
+                            destroyFunc = this.destroy;
+                        } else {
+                            destroyFunc = this.disconnect;
+                        }
+
+                        destroyFunc().then(() => {
+                            resolve(true);
+                        }).catch(() => {
+                            reject(false);
+                        });
                     }
-
-                    var destroyFunc : () => Promise<any>;
-
-                    if (destroy) {
-                        destroyFunc = this.destroy;
-                    } else {
-                        destroyFunc = this.disconnect;
-                    }
-
-                    destroyFunc().then(() => {
-                        resolve(true);
-                    }).catch(() => {
-                        reject(false);
-                    });
-                }
-            );
+                );
+            } else {
+                resolve(true);
+            }
         });
     };
 
