@@ -1,9 +1,10 @@
 { expect } = require('chai')
-
+promise = require('bluebird')
 { exec } = require('child_process')
 zookeeper = require('node-zookeeper-client')
 { simple } = require('locators')
 { ZookeeperLock } = require('../build/zookeeperLock')
+{ ZookeeperLockTimeoutError } = require('../build/exceptions')
 
 
 #todo: set this to the path to your zkServer command to run tests
@@ -77,7 +78,7 @@ describe 'Zookeeper lock', ->
   it "can lock when nothing holds the lock", (testComplete) ->
     @timeout 10000
     ZookeeperLock.lock('test').then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       lock.unlock().then(->
@@ -91,7 +92,7 @@ describe 'Zookeeper lock', ->
   it "can relock a lock that has been locked and unlocked", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       lock.unlock().then(->
@@ -114,7 +115,7 @@ describe 'Zookeeper lock', ->
       lock = ZookeeperLock.lockFactory()
 
       lock.lock('test').then(->
-        lock.on('lost', ->
+        lock.on(ZookeeperLock.Signals.LOST, ->
           testComplete(new Error('failed, lock should not have been lost'))
         )
         return lock.unlock()
@@ -130,12 +131,12 @@ describe 'Zookeeper lock', ->
   it "can not acquire a lock when something else holds it until it is released", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       isUnlocked = false
       ZookeeperLock.lock('test').then((lock2) ->
-        lock2.on('lost', ->
+        lock2.on(ZookeeperLock.Signals.LOST, ->
           testComplete(new Error('failed, lock should not have been lost'))
         )
         expect(isUnlocked).to.be.true
@@ -158,7 +159,7 @@ describe 'Zookeeper lock', ->
     @timeout 20000
     ZookeeperLock.lock('test')
     .then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       ZookeeperLock.checkLock('test')
@@ -198,7 +199,7 @@ describe 'Zookeeper lock', ->
     @timeout 20000
     ZookeeperLock.lock('test')
     .then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       ZookeeperLock.lock('test', 5000)
@@ -206,11 +207,13 @@ describe 'Zookeeper lock', ->
         lock2.unlock().then(->
           testComplete(new Error('did not timeout'))
         )
-      ).catch((err)->
+      ).catch(ZookeeperLockTimeoutError, (err)->
         expect(err.message).to.equal('timeout')
         lock.unlock().then(->
           testComplete()
         )
+      ).catch((unknownErr) ->
+        testComplete(unknownErr)
       )
     ).catch((err) ->
       testComplete(err)
@@ -221,7 +224,7 @@ describe 'Zookeeper lock', ->
   it "does not surrender the lock on disconnect if session does not expire", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
 
@@ -244,7 +247,7 @@ describe 'Zookeeper lock', ->
   it "releases the lock and emits the expired event on sessionTimeout", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete()
       )
 
@@ -259,3 +262,33 @@ describe 'Zookeeper lock', ->
         burning = nowTime[0] < 10
     )
     return
+
+  it "can have concurrent lock holders if configured to allow it", (testComplete) ->
+    multiConfig = {
+      serverLocator: locator,
+      pathPrefix: 'tests',
+      sessionTimeout: 2000,
+      maxConcurrentHolders: 2
+    }
+    lock1 = new ZookeeperLock(multiConfig)
+    lock2 = new ZookeeperLock(multiConfig)
+    lock3 = new ZookeeperLock(multiConfig)
+
+    expectedSuccess = [lock1.lock('test'), lock2.lock('test')]
+    promise.all(expectedSuccess).then((results) ->
+      return lock3.lock('test', 1000).then(->
+        throw Error('should not have been able to lock')
+      ).catch(ZookeeperLockTimeoutError, (err) ->
+        expect(err.message).to.equal('timeout')
+      ).catch((err) ->
+        testComplete(err)
+      )
+    ).catch((err) ->
+      testComplete(err)
+    ).finally(->
+      promise.all([lock1.unlock(), lock2.unlock(), lock3.destroy()]).finally(->
+        testComplete()
+      )
+    )
+    return null
+
