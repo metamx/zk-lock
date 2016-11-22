@@ -78,7 +78,7 @@ describe 'Zookeeper lock', ->
   it "can lock when nothing holds the lock", (testComplete) ->
     @timeout 10000
     ZookeeperLock.lock('test').then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       lock.unlock().then(->
@@ -92,7 +92,7 @@ describe 'Zookeeper lock', ->
   it "can relock a lock that has been locked and unlocked", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       lock.unlock().then(->
@@ -115,7 +115,7 @@ describe 'Zookeeper lock', ->
       lock = ZookeeperLock.lockFactory()
 
       lock.lock('test').then(->
-        lock.on('lost', ->
+        lock.on(ZookeeperLock.Signals.LOST, ->
           testComplete(new Error('failed, lock should not have been lost'))
         )
         return lock.unlock()
@@ -131,12 +131,12 @@ describe 'Zookeeper lock', ->
   it "can not acquire a lock when something else holds it until it is released", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       isUnlocked = false
       ZookeeperLock.lock('test').then((lock2) ->
-        lock2.on('lost', ->
+        lock2.on(ZookeeperLock.Signals.LOST, ->
           testComplete(new Error('failed, lock should not have been lost'))
         )
         expect(isUnlocked).to.be.true
@@ -159,7 +159,7 @@ describe 'Zookeeper lock', ->
     @timeout 20000
     ZookeeperLock.lock('test')
     .then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       ZookeeperLock.checkLock('test')
@@ -199,7 +199,7 @@ describe 'Zookeeper lock', ->
     @timeout 20000
     ZookeeperLock.lock('test')
     .then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
       ZookeeperLock.lock('test', 5000)
@@ -224,7 +224,7 @@ describe 'Zookeeper lock', ->
   it "does not surrender the lock on disconnect if session does not expire", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete(new Error('failed, lock should not have been lost'))
       )
 
@@ -247,7 +247,7 @@ describe 'Zookeeper lock', ->
   it "releases the lock and emits the expired event on sessionTimeout", (testComplete) ->
     @timeout 20000
     ZookeeperLock.lock('test').then((lock) ->
-      lock.on('lost', ->
+      lock.on(ZookeeperLock.Signals.LOST, ->
         testComplete()
       )
 

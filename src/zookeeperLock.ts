@@ -3,9 +3,20 @@ import * as Promise from 'bluebird';
 import * as zk from 'node-zookeeper-client';
 import * as util from 'util';
 import { Locator } from 'locators';
-import { ZookeeperLockTimeoutError } from './exceptions';
 
 const debuglog = util.debuglog('zk-lock');
+
+export class ZookeeperLockTimeoutError extends Error {
+    lockPath : string;
+    timeout? : number;
+
+    constructor(message : string, path : string, timeout? : number) {
+        super(message);
+        this.message = message;
+        this.lockPath = path;
+        this.timeout = timeout;
+    }
+}
 
 export class Configuration {
     serverLocator : Locator;
@@ -24,6 +35,11 @@ export class ZookeeperLock extends EventEmitter {
     public client : zk.Client = null;
     private connected : boolean = false;
     private static config : Configuration = null;
+
+    public static Signals = {
+        LOST: 'lost',
+        TIMEOUT: 'timeout'
+    };
 
     /**
      * create a new zk lock
@@ -76,7 +92,7 @@ export class ZookeeperLock extends EventEmitter {
 
                     this.client.once('expired', () => {
                         debuglog('expired');
-                        this.emit('lost');
+                        this.emit(ZookeeperLock.Signals.LOST);
                         if (this.client) {
                             this.client.removeAllListeners();
                             this.removeAllListeners();
@@ -190,7 +206,7 @@ export class ZookeeperLock extends EventEmitter {
                 setTimeout(() => {
                     debuglog('timed out, cancelling lock.');
                     timedOut = true;
-                    this.emit('timeout');
+                    this.emit(ZookeeperLock.Signals.TIMEOUT);
                     reject(new ZookeeperLockTimeoutError('timeout', path, timeout));
                  }, timeout);
             }
@@ -400,7 +416,7 @@ export class ZookeeperLock extends EventEmitter {
     private waitForLock = (path, timeout : number) : Promise<any> => {
 
         return new Promise<any>((resolve, reject) => {
-            this.once('timeout', () => {
+            this.once(ZookeeperLock.Signals.TIMEOUT, () => {
                reject(new ZookeeperLockTimeoutError('timeout', path, timeout));
             });
             this.waitForLockHelper(resolve, reject, path);
