@@ -1,9 +1,10 @@
 { expect } = require('chai')
-
+promise = require('bluebird')
 { exec } = require('child_process')
 zookeeper = require('node-zookeeper-client')
 { simple } = require('locators')
 { ZookeeperLock } = require('../build/zookeeperLock')
+{ ZookeeperLockTimeoutError } = require('../build/exceptions')
 
 
 #todo: set this to the path to your zkServer command to run tests
@@ -206,11 +207,13 @@ describe 'Zookeeper lock', ->
         lock2.unlock().then(->
           testComplete(new Error('did not timeout'))
         )
-      ).catch((err)->
+      ).catch(ZookeeperLockTimeoutError, (err)->
         expect(err.message).to.equal('timeout')
         lock.unlock().then(->
           testComplete()
         )
+      ).catch((unknownErr) ->
+        testComplete(unknownErr)
       )
     ).catch((err) ->
       testComplete(err)
@@ -259,3 +262,33 @@ describe 'Zookeeper lock', ->
         burning = nowTime[0] < 10
     )
     return
+
+  it "can have concurrent lock holders if configured to allow it", (testComplete) ->
+    multiConfig = {
+      serverLocator: locator,
+      pathPrefix: 'tests',
+      sessionTimeout: 2000,
+      maxConcurrentHolders: 2
+    }
+    lock1 = new ZookeeperLock(multiConfig)
+    lock2 = new ZookeeperLock(multiConfig)
+    lock3 = new ZookeeperLock(multiConfig)
+
+    expectedSuccess = [lock1.lock('test'), lock2.lock('test')]
+    promise.all(expectedSuccess).then((results) ->
+      return lock3.lock('test', 1000).then(->
+        throw Error('should not have been able to lock')
+      ).catch(ZookeeperLockTimeoutError, (err) ->
+        expect(err.message).to.equal('timeout')
+      ).catch((err) ->
+        testComplete(err)
+      )
+    ).catch((err) ->
+      testComplete(err)
+    ).finally(->
+      promise.all([lock1.unlock(), lock2.unlock(), lock3.destroy()]).finally(->
+        testComplete()
+      )
+    )
+    return null
+
