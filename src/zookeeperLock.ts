@@ -176,7 +176,8 @@ export class ZookeeperLock extends EventEmitter {
         debuglog('disconnecting...');
         return new Promise<any>((resolve, reject) => {
             this.client.removeListener('disconnected', this.reconnect);
-            this.client.once('disconnected', () => {
+
+            const _disconnect = () => {
                 if (this.client) {
                     this.client.removeAllListeners();
                 }
@@ -184,12 +185,13 @@ export class ZookeeperLock extends EventEmitter {
                 this.connected = false;
                 debuglog('disconnected');
                 resolve(true);
-            });
+            };
+
+            this.client.once('disconnected', _disconnect);
             this.client.close();
 
-            setTimeout(() => {
-                resolve(true);
-            }, 5000);
+            // force closed after 5s if disconnect event doesn't happen for whatever reason
+            setTimeout(_disconnect, 5000);
         });
     };
 
