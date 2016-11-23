@@ -6,6 +6,9 @@ import { Locator } from 'locators';
 
 const debuglog = util.debuglog('zk-lock');
 
+/**
+ * Error thrown by locking action when blocking wait for lock reaches a timeout period
+ */
 export class ZookeeperLockTimeoutError extends Error {
     lockPath : string;
     timeout? : number;
@@ -18,12 +21,26 @@ export class ZookeeperLockTimeoutError extends Error {
     }
 }
 
+/**
+ * Error thrown by locking action when config.failImmediate == true when a lock is already locked
+ */
+export class ZookeeperLockAlreadyLockedError extends Error {
+    lockPath : string;
+
+    constructor(message : string, path : string) {
+        super(message);
+        this.message = message;
+        this.lockPath = path;
+    }
+}
+
 export class Configuration {
     serverLocator : Locator;
     pathPrefix : string;
     sessionTimeout? : number;
     spinDelay? : number;
     retries? : number;
+    failImmediate? : boolean;
     maxConcurrentHolders? : number;
 }
 
@@ -159,7 +176,8 @@ export class ZookeeperLock extends EventEmitter {
         debuglog('disconnecting...');
         return new Promise<any>((resolve, reject) => {
             this.client.removeListener('disconnected', this.reconnect);
-            this.client.once('disconnected', () => {
+
+            const _disconnect = () => {
                 if (this.client) {
                     this.client.removeAllListeners();
                 }
@@ -167,12 +185,13 @@ export class ZookeeperLock extends EventEmitter {
                 this.connected = false;
                 debuglog('disconnected');
                 resolve(true);
-            });
+            };
+
+            this.client.once('disconnected', _disconnect);
             this.client.close();
 
-            setTimeout(() => {
-                resolve(true);
-            }, 5000);
+            // force closed after 5s if disconnect event doesn't happen for whatever reason
+            setTimeout(_disconnect, 5000);
         });
     };
 
@@ -201,7 +220,7 @@ export class ZookeeperLock extends EventEmitter {
 
         return new Promise<any>((resolve, reject) => {
             let timedOut = false;
-            if (timeout) {
+            if (timeout && !this.config.failImmediate) {
                 debuglog('starting timeout');
                 setTimeout(() => {
                     debuglog('timed out, cancelling lock.');
@@ -477,6 +496,10 @@ export class ZookeeperLock extends EventEmitter {
                     debuglog(`checking ${mySeq} less than ${min} + ${this.config.maxConcurrentHolders}`);
                     if (mySeq < (min + this.config.maxConcurrentHolders)) {
                         resolve(true);
+                    }
+
+                    if (this.config.failImmediate) {
+                        reject(new ZookeeperLockAlreadyLockedError('already locked', path));
                     }
                 } catch (ex) {
                     debuglog(ex.message);
