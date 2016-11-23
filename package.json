@@ -1,6 +1,6 @@
 {
   "name": "zk-lock",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "A distributed lock using zookeeper",
   "keywords": [
     "zookeeper",
