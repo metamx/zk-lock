@@ -3,8 +3,7 @@ promise = require('bluebird')
 { exec } = require('child_process')
 zookeeper = require('node-zookeeper-client')
 { simple } = require('locators')
-{ ZookeeperLock } = require('../build/zookeeperLock')
-{ ZookeeperLockTimeoutError } = require('../build/exceptions')
+{ ZookeeperLock, ZookeeperLockTimeoutError, ZookeeperLockAlreadyLockedError } = require('../build/zookeeperLock')
 
 
 #todo: set this to the path to your zkServer command to run tests
@@ -292,3 +291,23 @@ describe 'Zookeeper lock', ->
     )
     return null
 
+  it "can fail immediately when already locked if configured as such", (testComplete) ->
+    failImmediateConfig = {
+      serverLocator: locator,
+      pathPrefix: 'tests',
+      sessionTimeout: 2000,
+      failImmediate: true
+    }
+    lock1 = new ZookeeperLock(failImmediateConfig)
+    lock2 = new ZookeeperLock(failImmediateConfig)
+
+    lock1.lock('test').then(->
+      return lock2.lock('test');
+    ).then(->
+      throw Error('should not have been able to lock')
+    ).catch(ZookeeperLockAlreadyLockedError, (correctErr) ->
+      expect(correctErr.message).to.equal('already locked');
+      testComplete();
+    ).catch(testComplete)
+
+    return null

@@ -26,7 +26,10 @@ path will be of the form `locks/foo/bar/baz`.
 
 `retries: number` node-zookeeper-client `retries` parameter that is passed down to the zookeeper client.
 
-	
+`failImmediate: boolean` when set to true, instead of a blocking call to `.lock`, it will fail immediately throwing a `ZookeeperLockAlreadyLockedError`
+
+`maxConcurrentHolders: number` allow multiple calls to `.lock` to grab a lock, allowing the lock to control the number of participants in an action
+
 ## ZookeeperLock
 ### constructor
 usage: 
