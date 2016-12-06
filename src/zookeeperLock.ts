@@ -247,10 +247,8 @@ export class ZookeeperLock extends EventEmitter {
             }).catch((err) => {
                 debuglog('error grabbing lock:' + err);
                 if (timedOut) {
-                    this.disconnect().then(() => {
-                        reject(err);
-                    }).catch((err2) => {
-                        reject(err2);
+                    this.disconnect().finally(() => {
+                        reject(new ZookeeperLockTimeoutError('timeout', path, timeout));
                     });
                 } else {
                     reject(err);
