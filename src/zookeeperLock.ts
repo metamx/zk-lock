@@ -174,7 +174,7 @@ export class ZookeeperLock extends EventEmitter {
             return this.disconnectHelper()
                 .timeout(5000, 'failed to disconnect within 5 seconds, returning anyway')
                 .catch(Promise.TimeoutError, (e) => {
-                    debuglog(e.message);
+                    debuglog(e && e.message ? e.message : e);
                     return true;
                 });
         }
@@ -232,13 +232,13 @@ export class ZookeeperLock extends EventEmitter {
      * @returns {Promise<any>}
      */
     public unlock = (destroy : boolean = true) : Promise<any> => {
-        debuglog(`unlocking ${this.path}/${this.key}`);
         return new Promise<any>((resolve, reject) => {
-            if (this.client) {
+            if (this.client && this.path && this.key) {
+                debuglog(`unlocking ${this.path}/${this.key}`);
                 this.client.remove(
                     `${this.path}/${this.key}`,
                     (err) => {
-                        if (err && err.message.indexOf('NO_NODE') < 0) {
+                        if (err && err.message && err.message.indexOf('NO_NODE') < 0) {
                             reject(new Error(`Failed to remove children at ${this.path}/${this.key} due to: ${err}.`));
                             return;
                         }
@@ -260,7 +260,7 @@ export class ZookeeperLock extends EventEmitter {
                     }
                 );
             } else {
-                debuglog(`client not connected, skipping unlock of ${this.path}/${this.key}`);
+                debuglog(`client or lock not connected, skipping unlock ${this.path ? `of ${this.path}/${this.key}` : ''}`);
                 resolve(true);
             }
         });
@@ -404,15 +404,16 @@ export class ZookeeperLock extends EventEmitter {
             (err, locks, state) => {
                 try {
                     if (err || !locks || locks.length === 0) {
+                        const errMsg = err && err.message ? err.message : 'no children';
                         if (this.connected) {
-                            debuglog(`${path}: failed to get children: ${err.message}`);
+                            debuglog(`${path}: failed to get children: ${errMsg}`);
                             this.unlock().then(() => {
-                                reject(new Error(`Failed to get children node: ${path} due to: ${err}.`));
+                                reject(new Error(`Failed to get children node: ${errMsg}.`));
                             }).catch((err2) => {
                                 reject(err2);
                             });
                         } else {
-                            reject(new Error(`Failed to get children node: ${path} due to: ${err}.`));
+                            reject(new Error(`Failed to get children node: ${errMsg}.`));
                         }
                         return;
                     }
@@ -437,9 +438,7 @@ export class ZookeeperLock extends EventEmitter {
                     debuglog(`checking ${mySeq} less than ${min} + ${this.config.maxConcurrentHolders}`);
                     if (mySeq < (min + this.config.maxConcurrentHolders)) {
                         resolve(true);
-                    }
-
-                    if (this.config.failImmediate) {
+                    } else if (this.config.failImmediate) {
                         debuglog(`${path}: failing immediately`);
                         reject(new ZookeeperLockAlreadyLockedError('already locked', path));
                     }
@@ -480,7 +479,7 @@ export class ZookeeperLock extends EventEmitter {
                 if (err.indexOf('NO_NODE') > -1 ) {
                     return false;
                 } else {
-                    debuglog(`error checking locked: ${this.path}/${this.key}: ${err.message}`);
+                    debuglog(`error checking locked: ${this.path}/${this.key}: ${err && err.message ? err.message : 'unknown'}`);
                     throw err;
                 }
             });
