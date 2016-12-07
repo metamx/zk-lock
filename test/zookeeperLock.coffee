@@ -307,7 +307,11 @@ describe 'Zookeeper lock', ->
       throw Error('should not have been able to lock')
     ).catch(ZookeeperLockAlreadyLockedError, (correctErr) ->
       expect(correctErr.message).to.equal('already locked');
-      testComplete();
     ).catch(testComplete)
+    .finally(->
+      promise.all([lock1.unlock(), lock2.destroy()]).finally(->
+        testComplete()
+      )
+    )
 
     return null
