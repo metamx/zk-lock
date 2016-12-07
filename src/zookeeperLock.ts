@@ -495,8 +495,7 @@ export class ZookeeperLock extends EventEmitter {
                 (err, locks, stat) => {
                     if (err) {
                         reject(err);
-                    }
-                    if (locks) {
+                    } else if (locks) {
 
                         const filtered = this.filterLocks(locks);
 
