@@ -51,6 +51,7 @@ export class ZookeeperLock extends EventEmitter {
     private config : Configuration = null;
     public client : zk.Client = null;
     private connected : boolean = false;
+    private timedOut : boolean = false;
     private static config : Configuration = null;
 
     public static Signals = {
@@ -287,6 +288,7 @@ export class ZookeeperLock extends EventEmitter {
             return this.lockHelper(path, nodePath, timeout)
                 .timeout(timeout, 'timeout')
                 .catch(Promise.TimeoutError, (te) => {
+                    this.timedOut = true;
                     this.disconnect();
                     throw new ZookeeperLockTimeoutError('timeout', path, timeout);
                 });
@@ -307,7 +309,7 @@ export class ZookeeperLock extends EventEmitter {
             })
             .then(() => {
                 debuglog(`waiting for lock at ${nodePath}`);
-                return this.waitForLock(nodePath, timeout);
+                return this.waitForLock(nodePath);
             })
             .then(() => {
                 debuglog(`lock ${nodePath} acquired`);
@@ -373,12 +375,10 @@ export class ZookeeperLock extends EventEmitter {
      * @param path
      * @returns {Promise<any>}
      */
-    private waitForLock = (path, timeout : number) : Promise<any> => {
+    private waitForLock = (path) : Promise<any> => {
 
+        this.timedOut = false;
         return new Promise<any>((resolve, reject) => {
-            this.once(ZookeeperLock.Signals.TIMEOUT, () => {
-               reject(new ZookeeperLockTimeoutError('timeout', path, timeout));
-            });
             this.waitForLockHelper(resolve, reject, path);
         });
     };
@@ -395,13 +395,19 @@ export class ZookeeperLock extends EventEmitter {
      */
     private waitForLockHelper = (resolve, reject, path) : void => {
         debuglog(`${path} wait loop.`);
+        if (this.timedOut) {
+            return;
+        }
+
         this.client.getChildren(
             path,
             (event) => {
+                if (this.timedOut) { return; }
                 debuglog(`${path}: children changed.`);
                 this.waitForLockHelper(resolve, reject, path);
             },
             (err, locks, state) => {
+                if (this.timedOut) { return; }
                 try {
                     if (err || !locks || locks.length === 0) {
                         const errMsg = err && err.message ? err.message : 'no children';
