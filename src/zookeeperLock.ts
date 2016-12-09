@@ -301,6 +301,7 @@ export class ZookeeperLock extends EventEmitter {
     private lockHelper = (path : string, nodePath : string, timeout? : number) : Promise<any> => {
         return this.connect()
             .then(() => {
+                this.timedOut = false;
                 debuglog(`making lock at ${nodePath}`);
                 return this.makeLockDir(nodePath);
             })
@@ -331,6 +332,10 @@ export class ZookeeperLock extends EventEmitter {
             this.client.mkdirp(
                 path,
                 (err) => {
+                    if (this.timedOut) {
+                        return;
+                    }
+
                     if (err) {
                         reject(new Error(`Failed to create directory: ${path} due to: ${err}.`));
                         return;
@@ -355,6 +360,10 @@ export class ZookeeperLock extends EventEmitter {
                 new Buffer('lock'),
                 zk.CreateMode.EPHEMERAL_SEQUENTIAL,
                 (err, lockPath) => {
+                    if (this.timedOut) {
+                        return;
+                    }
+
                     if (err) {
                         reject(new Error(`Failed to create node: ${lockPath} due to: ${err}.`));
                         return;
@@ -376,8 +385,6 @@ export class ZookeeperLock extends EventEmitter {
      * @returns {Promise<any>}
      */
     private waitForLock = (path) : Promise<any> => {
-
-        this.timedOut = false;
         return new Promise<any>((resolve, reject) => {
             this.waitForLockHelper(resolve, reject, path);
         });
