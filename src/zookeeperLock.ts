@@ -260,27 +260,25 @@ export class ZookeeperLock extends EventEmitter {
                 });
             };
 
-            if (this.client && this.path && this.key) {
-                debuglog(`unlocking ${this.path}/${this.key}`);
-                this.client.remove(
-                    `${this.path}/${this.key}`,
-                    (err) => {
-                        if (err && err.message && err.message.indexOf('NO_NODE') < 0) {
-                            reject(new Error(`Failed to remove children at ${this.path}/${this.key} due to: ${err}.`));
-                            return;
+            if (this.client) {
+                if (this.path && this.key) {
+                    debuglog(`lock set, unlocking ${this.path}/${this.key}`);
+                    this.client.remove(
+                        `${this.path}/${this.key}`,
+                        (err) => {
+                            if (err && err.message && err.message.indexOf('NO_NODE') < 0) {
+                                debuglog(`failed to remove ${this.path}/${this.key} due to: ${err}.`);
+                            }
+                            cleanup();
                         }
-
-                        cleanup();
-                    }
-                );
-            } else {
-                if (this.client) {
-                    debuglog(`lock not set, skipping unlock, but cleaning up connection ${this.path ? `of ${this.path}/${this.key}` : ''}`);
-                    cleanup();
+                    );
                 } else {
-                    debuglog(`client not connected, skipping unlock ${this.path ? `of ${this.path}/${this.key}` : ''}`);
-                    resolve(true);
+                    debuglog(`lock not set, skipping unlock, but cleaning up connection`);
+                    cleanup();
                 }
+            } else {
+                debuglog(`client not connected, skipping unlock and cleanup`);
+                resolve(true);
             }
         });
     };
@@ -460,10 +458,10 @@ export class ZookeeperLock extends EventEmitter {
                     debuglog(`checking ${mySeq} less than ${min} + ${this.config.maxConcurrentHolders}`);
                     if (mySeq < (min + this.config.maxConcurrentHolders)) {
                         debuglog(`${mySeq} can grab the lock on ${path}`);
-                        resolve(true);
+                        return resolve(true);
                     } else if (this.config.failImmediate) {
                         debuglog(`${path}: failing immediately`);
-                        reject(new ZookeeperLockAlreadyLockedError('already locked', path));
+                        return reject(new ZookeeperLockAlreadyLockedError('already locked', path));
                     }
                     debuglog(`lock not available for ${mySeq} on ${path}, waiting...`);
                 } catch (ex) {
