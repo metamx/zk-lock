@@ -35,8 +35,8 @@ export class ZookeeperLockAlreadyLockedError extends Error {
 }
 
 export class Configuration {
-    serverLocator : Locator;
-    pathPrefix : string;
+    serverLocator? : Locator;
+    pathPrefix? : string;
     sessionTimeout? : number;
     spinDelay? : number;
     retries? : number;
@@ -65,7 +65,7 @@ export class ZookeeperLock extends EventEmitter {
      */
     constructor(config : Configuration) {
         super();
-        this.config = config;
+        this.config = config ? config : {};
         if (this.config.sessionTimeout == null) {
             this.config.sessionTimeout = 15000;
         }
@@ -99,6 +99,7 @@ export class ZookeeperLock extends EventEmitter {
                 if (location.port) {
                     server += ":" + location.port;
                 }
+                debuglog('server location resolved');
                 debuglog(server);
                 const client = zk.createClient(server, {
                     sessionTimeout: this.config.sessionTimeout,
@@ -112,6 +113,7 @@ export class ZookeeperLock extends EventEmitter {
                     debuglog('expired');
                     this.emit(ZookeeperLock.Signals.LOST);
                     if (this.client) {
+                        debuglog('removing listeners');
                         this.client.removeAllListeners();
                         this.removeAllListeners();
                         this.client = null;
@@ -141,6 +143,7 @@ export class ZookeeperLock extends EventEmitter {
             }
 
             if (this.client === null) {
+                debuglog('client null, creating...');
                 return this.createClient().then(() => {
                     return this.connectHelper();
                 });
@@ -153,6 +156,7 @@ export class ZookeeperLock extends EventEmitter {
     private connectHelper = () : Promise<any> => {
         return new Promise<any>((resolve, reject) => {
             this.client.once('connected', () => {
+                debuglog('connected');
                 this.connected = true;
                 resolve(true);
             });
@@ -234,6 +238,28 @@ export class ZookeeperLock extends EventEmitter {
      */
     public unlock = (destroy : boolean = true) : Promise<any> => {
         return new Promise<any>((resolve, reject) => {
+            const cleanup = () => {
+                let destroyFunc : () => Promise<any>;
+
+                if (destroy) {
+                    destroyFunc = this.destroy;
+                } else {
+                    destroyFunc = this.disconnect;
+                }
+
+                destroyFunc().then(() => {
+                    if (this.path && this.key) {
+                        debuglog(`unlocked ${this.path}/${this.key}, cleanup complete`);
+                    } else {
+                        debuglog('cleanup complete');
+                    }
+                    resolve(true);
+                }).catch(() => {
+                    debuglog('cleanup failed');
+                    reject(false);
+                });
+            };
+
             if (this.client && this.path && this.key) {
                 debuglog(`unlocking ${this.path}/${this.key}`);
                 this.client.remove(
@@ -244,25 +270,17 @@ export class ZookeeperLock extends EventEmitter {
                             return;
                         }
 
-                        let destroyFunc : () => Promise<any>;
-
-                        if (destroy) {
-                            destroyFunc = this.destroy;
-                        } else {
-                            destroyFunc = this.disconnect;
-                        }
-
-                        destroyFunc().then(() => {
-                            debuglog(`unlocked ${this.path}/${this.key}`);
-                            resolve(true);
-                        }).catch(() => {
-                            reject(false);
-                        });
+                        cleanup();
                     }
                 );
             } else {
-                debuglog(`client or lock not connected, skipping unlock ${this.path ? `of ${this.path}/${this.key}` : ''}`);
-                resolve(true);
+                if (this.client) {
+                    debuglog(`lock not set, skipping unlock, but cleaning up connection ${this.path ? `of ${this.path}/${this.key}` : ''}`);
+                    cleanup();
+                } else {
+                    debuglog(`client not connected, skipping unlock ${this.path ? `of ${this.path}/${this.key}` : ''}`);
+                    resolve(true);
+                }
             }
         });
     };
@@ -418,17 +436,8 @@ export class ZookeeperLock extends EventEmitter {
                 try {
                     if (err || !locks || locks.length === 0) {
                         const errMsg = err && err.message ? err.message : 'no children';
-                        if (this.connected) {
-                            debuglog(`${path}: failed to get children: ${errMsg}`);
-                            this.unlock().then(() => {
-                                reject(new Error(`Failed to get children node: ${errMsg}.`));
-                            }).catch((err2) => {
-                                reject(err2);
-                            });
-                        } else {
-                            reject(new Error(`Failed to get children node: ${errMsg}.`));
-                        }
-                        return;
+                        debuglog(`${path}: failed to get children: ${errMsg}`);
+                        return reject(new Error(`Failed to get children node: ${errMsg}.`));
                     }
 
                     const sequence = this.filterLocks(locks)
@@ -439,7 +448,7 @@ export class ZookeeperLock extends EventEmitter {
                             return l >= 0;
                         });
 
-                    debuglog(JSON.stringify(sequence));
+                    debuglog(`lock sequence: ${JSON.stringify(sequence)}`);
 
                     const mySeq = ZookeeperLock.getSequenceNumber(this.key);
 
@@ -450,11 +459,13 @@ export class ZookeeperLock extends EventEmitter {
 
                     debuglog(`checking ${mySeq} less than ${min} + ${this.config.maxConcurrentHolders}`);
                     if (mySeq < (min + this.config.maxConcurrentHolders)) {
+                        debuglog(`${mySeq} can grab the lock on ${path}`);
                         resolve(true);
                     } else if (this.config.failImmediate) {
                         debuglog(`${path}: failing immediately`);
                         reject(new ZookeeperLockAlreadyLockedError('already locked', path));
                     }
+                    debuglog(`lock not available for ${mySeq} on ${path}, waiting...`);
                 } catch (ex) {
                     debuglog(`error ${path}: ${ex.message}`);
                     reject(ex);
