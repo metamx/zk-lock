@@ -42,7 +42,6 @@ export class Configuration {
     retries? : number;
     failImmediate? : boolean;
     maxConcurrentHolders? : number;
-    maxHoldTime? : number;
 }
 
 export class ZookeeperLock extends EventEmitter {
