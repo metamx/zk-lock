@@ -54,6 +54,7 @@ export class ZookeeperLock extends EventEmitter {
     private timedOut : boolean = false;
     private locked : boolean = false;
     private disconnecting : boolean = false;
+    private retryCount : number = 0;
 
     private static config : Configuration = null;
 
@@ -245,8 +246,12 @@ export class ZookeeperLock extends EventEmitter {
      * @returns {Promise<any>}
      */
     private reconnect = () : Promise<any> => {
-        debuglog('reconnecting...');
         this.connected = false;
+        this.retryCount++;
+        if (this.config.failImmediate || (this.retryCount <= this.config.retries) || !this.locked) {
+            return Promise.resolve(false);
+        }
+        debuglog('reconnecting...');
         return this.connect(this.config.spinDelay);
     };
 
@@ -485,6 +490,7 @@ export class ZookeeperLock extends EventEmitter {
 
                     const mySeq = ZookeeperLock.getSequenceNumber(this.key);
 
+                    // todo: fix me for max concurrent holders...
                     // make sure we are first...
                     const min = sequence.reduce((acc, elem) => {
                         return Math.min(acc, elem);
