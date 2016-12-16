@@ -385,12 +385,11 @@ export class ZookeeperLock extends EventEmitter {
                 path,
                 (err) => {
                     if (this.checkBail()) {
-                        return;
+                        return reject(new Error('aborting lock process'));
                     }
 
                     if (err) {
-                        reject(new Error(`Failed to create directory: ${path} due to: ${err}.`));
-                        return;
+                        return reject(new Error(`Failed to create directory: ${path} due to: ${err}.`));
                     }
                     resolve(true);
                 }
@@ -413,12 +412,11 @@ export class ZookeeperLock extends EventEmitter {
                 zk.CreateMode.EPHEMERAL_SEQUENTIAL,
                 (err, lockPath) => {
                     if (this.checkBail()) {
-                        return;
+                        return reject(new Error('aborting lock process'));
                     }
 
                     if (err) {
-                        reject(new Error(`Failed to create node: ${lockPath} due to: ${err}.`));
-                        return;
+                        return reject(new Error(`Failed to create node: ${lockPath} due to: ${err}.`));
                     }
                     debuglog(`init lock: ${path}, ${lockPath.replace(path + '/', '')}`);
 
@@ -459,18 +457,22 @@ export class ZookeeperLock extends EventEmitter {
     private waitForLockHelper = (resolve, reject, path) : void => {
         debuglog(`${path} wait loop.`);
         if (this.locked || this.checkBail()) {
-            return;
+            return reject(new Error('aborting lock process'));
         }
 
         this.client.getChildren(
             path,
             (event) => {
-                if (this.locked || this.checkBail()) { return; }
+                if (this.locked || this.checkBail()) {
+                    return reject(new Error('aborting lock process'));
+                }
                 debuglog(`${path}/${this.key}: children changed.`);
                 this.waitForLockHelper(resolve, reject, path);
             },
             (err, locks, state) => {
-                if (this.locked || this.checkBail()) { return; }
+                if (this.locked || this.checkBail()) {
+                    return reject(new Error('aborting lock process'));
+                }
                 try {
                     if (err || !locks || locks.length === 0) {
                         const errMsg = err && err.message ? err.message : 'no children';
