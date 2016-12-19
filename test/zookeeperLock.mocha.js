@@ -57,7 +57,7 @@ const config = {
 
 
 describe('Zookeeper lock', function () {
-    this.timeout(5000);
+    this.timeout(120000);
 
     before((beforeComplete) => {
 
@@ -72,7 +72,7 @@ describe('Zookeeper lock', function () {
     });
 
     afterEach((afterEachComplete) => {
-        this.timeout(4000);
+        this.timeout(10000);
         setTimeout(() => {
             afterEachComplete();
         }, 3000);
@@ -106,7 +106,7 @@ describe('Zookeeper lock', function () {
             lock.on(ZookeeperLock.Signals.LOST, () => {
                 testComplete(new Error('failed, lock should not have been lost'));
             });
-            lock.unlock().then(() => {
+            lock.unlock(false).then(() => {
                 setTimeout(() => {
                     lock.lock('test').then(() => {
                         lock.unlock().then(() => {
@@ -303,6 +303,7 @@ describe('Zookeeper lock', function () {
     });
 
     it("can fail immediately when already locked if configured as such", function (testComplete) {
+        this.timeout(15000);
         const failImmediateConfig = {
             serverLocator: locator,
             pathPrefix: 'tests',
@@ -311,19 +312,33 @@ describe('Zookeeper lock', function () {
         };
         const lock1 = new ZookeeperLock(failImmediateConfig);
         const lock2 = new ZookeeperLock(failImmediateConfig);
+        const lock3 = new ZookeeperLock(failImmediateConfig);
+        const lock4 = new ZookeeperLock(failImmediateConfig);
+        const lock5 = new ZookeeperLock(failImmediateConfig);
 
+        let failErr = null;
         lock1.lock('test').then(() => {
-            return lock2.lock('test');
-        }).then(() => {
-            throw Error('should not have been able to lock');
-        }).catch(ZookeeperLockAlreadyLockedError, (correctErr) => {
-            expect(correctErr.message).to.equal('already locked');
+            return promise.all([lock2.lock('test'), lock3.lock('test'), lock4.lock('test'), lock5.lock('test')].map(function(p) {
+                return p.reflect();
+            }));
+        }).each(function(inspection) {
+            if (inspection.isFulfilled()) {
+                throw Error('should not have been able to lock');
+            } else {
+                if (inspection.reason().message !== 'aborting lock process' && inspection.reason().message !== 'already locked') {
+                    throw Error(`got wrong reason: ${inspection.reason().message}`);
+                }
+            }
         }).catch((err) => {
             expect(err).to.not.exist;
+            failErr = err;
         }).finally(() => {
-            promise.all([lock1.unlock(), lock2.destroy()]).finally(() => {
-                testComplete();
-            });
+            promise.all([lock1.unlock(), lock2.destroy(), lock3.destroy(), lock4.destroy(), lock5.destroy()])
+                .catch((err) => {
+                    failErr = err;
+                }).finally(() => {
+                    testComplete(failErr);
+                });
         });
 
         return null;
