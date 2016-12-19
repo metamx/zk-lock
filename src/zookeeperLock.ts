@@ -44,17 +44,19 @@ export class Configuration {
     maxConcurrentHolders? : number;
 }
 
+
 export class ZookeeperLock extends EventEmitter {
     path : string;
     key : string;
 
     private config : Configuration = null;
     public client : zk.Client = null;
-    private connected : boolean = false;
     private timedOut : boolean = false;
     private locked : boolean = false;
-    private disconnecting : boolean = false;
     private retryCount : number = 0;
+    private destroyed : boolean = false;
+
+    private timeout : number;
 
     private static config : Configuration = null;
 
@@ -125,7 +127,6 @@ export class ZookeeperLock extends EventEmitter {
                         this.client.removeAllListeners();
                         this.removeAllListeners();
                         this.client.close();
-                        this.connected = false;
                         this.client = null;
                     }
                 });
@@ -144,10 +145,12 @@ export class ZookeeperLock extends EventEmitter {
      * @returns {Promise<any>}
      */
     public connect = (delay : number = 0) : Promise<any> => {
+        if (this.destroyed) {
+            return Promise.reject('cannot connect, lock destroyed');
+        }
         debuglog('connecting...');
-        this.disconnecting = false;
         return Promise.delay(delay).then(() => {
-            if (this.connected) {
+            if (this.client && (<any>this.client.getState()).name === 'SYNC_CONNECTED') {
                 debuglog('already connnected');
                 return true;
             }
@@ -167,8 +170,13 @@ export class ZookeeperLock extends EventEmitter {
         return new Promise<any>((resolve, reject) => {
             this.client.once('connected', () => {
                 debuglog('connected');
-                this.connected = true;
-                resolve(true);
+                if (this.destroyed) {
+                    this.disconnect().finally(() => {
+                        reject('lock destroyed while connecting');
+                    });
+                } else {
+                    resolve(true);
+                }
             });
 
             this.client.connect();
@@ -189,12 +197,15 @@ export class ZookeeperLock extends EventEmitter {
         if (this.client == null) {
             return Promise.resolve(null);
         } else {
-            this.disconnecting = true;
             this.client.removeListener('disconnected', this.reconnect);
+            const timeout = this.timeout ? this.timeout : 5000;
             return this.disconnectHelper()
-                .timeout(5000, 'failed to disconnect within 5 seconds, returning anyway')
+                .timeout(timeout, `failed to disconnect within ${timeout / 1000} seconds, returning anyway`)
                 .catch(Promise.TimeoutError, (e) => {
                     debuglog(e && e.message ? e.message : e);
+                    if (this.client) {
+                        this.client.removeAllListeners();
+                    }
                     return true;
                 });
         }
@@ -207,8 +218,6 @@ export class ZookeeperLock extends EventEmitter {
                     this.client.removeAllListeners();
                 }
                 this.client = null;
-                this.connected = false;
-                this.disconnecting = false;
                 if (this.key && this.path) {
                     debuglog(`${this.path}/${this.key}: disconnected`);
                 } else {
@@ -227,6 +236,7 @@ export class ZookeeperLock extends EventEmitter {
      * @returns {Promise<any>}
      */
     public destroy = () : Promise<boolean> => {
+        this.destroyed = true;
         return this.disconnect().then(() => {
             if (this.key && this.path) {
                 debuglog(`${this.path}/${this.key}: destroyed`);
@@ -246,12 +256,11 @@ export class ZookeeperLock extends EventEmitter {
      * @returns {Promise<any>}
      */
     private reconnect = () : Promise<any> => {
-        this.connected = false;
         this.retryCount++;
-        if (this.config.failImmediate || (this.retryCount <= this.config.retries) || !this.locked) {
+        if (this.destroyed || this.config.failImmediate || (this.retryCount <= this.config.retries) || !this.locked) {
             return Promise.resolve(false);
         }
-        debuglog('reconnecting...');
+        debuglog(`reconnecting ${this.retryCount}...`);
         return this.connect(this.config.spinDelay);
     };
 
@@ -331,6 +340,8 @@ export class ZookeeperLock extends EventEmitter {
             debuglog('already locked');
             return Promise.resolve(this);
         }
+
+        this.timeout = timeout;
 
         debuglog(`try locking ${key} at ${path}${someRandomExtraLogText}`);
 
@@ -442,7 +453,7 @@ export class ZookeeperLock extends EventEmitter {
 
 
     private checkBail = () => {
-        return this.timedOut || this.disconnecting || !this.connected;
+        return this.timedOut || this.destroyed || (this.client && (<any>this.client.getState()).name !== 'SYNC_CONNECTED');
     };
     /**
      * helper method that does the grunt of the work of waiting for the lock. This method does 2 things, first
@@ -504,6 +515,7 @@ export class ZookeeperLock extends EventEmitter {
                         return resolve(true);
                     } else if (this.config.failImmediate) {
                         this.locked = false;
+                        this.destroyed = true;
                         debuglog(`${path}/${this.key}: failing immediately`);
                         return reject(new ZookeeperLockAlreadyLockedError('already locked', path));
                     }
