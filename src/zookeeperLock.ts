@@ -48,12 +48,12 @@ export class ZookeeperLockConfiguration {
      */
     sessionTimeout? : number;
     /**
-     * dual function parameter, functioning both as zookeeper lock 'reconnect' delay
+     * milliseconds, dual function parameter, functioning both as zookeeper lock 'reconnect' delay
      * as well as internal zookeeper client spinDelay
      */
     spinDelay? : number;
     /**
-     * dual function parameter, functioning both as zookeeper lock 'reconnect' limit
+     * milliseconds, dual function parameter, functioning both as zookeeper lock 'reconnect' limit
      * as well as internal zookeeper client retries
      */
     retries? : number;
@@ -63,7 +63,8 @@ export class ZookeeperLockConfiguration {
      */
     autoDestroyOnUnlock? : boolean;
     /**
-     * when true, if the lock is not obtainable immediately, fail with a ZookeeperLockAlreadyLockedError
+     * when true, if the lock is not obtainable immediately, fail with a ZookeeperLockAlreadyLockedError and
+     * disconnect or destroy depending on autoDestroyOnUnlock the lock
      */
     failImmediate? : boolean;
     /**
@@ -75,14 +76,21 @@ export class ZookeeperLockConfiguration {
     maxConcurrentHolders? : number;
     /**
      * if set to true, set a timeout defaulting to 10 seconds to give status updates on the lock while it
-     * is connected to zookeeper, used to help debug working with the locks to detect leaks or what not
+     * is connected to zookeeper, used to help debug working with the locks to detect leaks or what not,
+     * visible by launching the app with the environment variable NODE_DEBUG=zk-lock set
      */
     enableTraceLog? : boolean;
 
     /**
-     * the rate at which debug trace logs are emitted when enableTraceLog is set to true
+     * milliseconds, the rate at which debug trace logs are emitted when enableTraceLog is set to true
      */
     traceLogRefresh? : number;
+
+    /**
+     * milliseconds, the quiet period after a lock is connected until the traceLog will begin reporting
+     * long held locks and suspected connection leaks in a more verbose manner
+     */
+    traceLogQuietPeriod? : number;
 }
 
 
@@ -142,6 +150,9 @@ export class ZookeeperLock extends EventEmitter {
         if (this.config.enableTraceLog) {
             if (!this.config.traceLogRefresh) {
                 this.config.traceLogRefresh = 10000;
+            }
+            if (!this.config.traceLogQuietPeriod) {
+                this.config.traceLogQuietPeriod = 30000;
             }
         }
 
@@ -283,7 +294,7 @@ export class ZookeeperLock extends EventEmitter {
         setTimeout(() => {
             const lifetime = Date.now() - this.created.getTime();
             if (this.client) {
-                if (lifetime > 30000 && ((<any>this.client.getState()).name === 'SYNC_CONNECTED' || (<any>this.client.getState()).name === 'CONNECTED')) {
+                if (lifetime > this.config.traceLogQuietPeriod && (<any>this.client.getState()).name === 'SYNC_CONNECTED') {
                     if (this.state === ZookeeperLock.States.LOCKED) {
                         debuglog('----------------------------');
                         debuglog(`long held lock (${lifetime / 1000} sec) detected ${this.path && this.key ? `${this.path}/${this.key}` : this.path ? this.path : 'unknown connection'}`);
