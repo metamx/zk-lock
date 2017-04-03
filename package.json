@@ -13,30 +13,26 @@
     "url": "http://github.com/metamx/zk-beacon.git"
   },
   "main": "build/index.js",
-  "typescript": {
-    "definition": "build/zk-lock.d.ts"
-  },
   "scripts": {
-    "dts": "dts-generator --name zk-lock --out build/zk-lock.d.ts --project `(pwd)` --main zk-lockld/index",
     "compile": "tsc",
     "lint": "tslint -c tslint.json src/**/*.ts",
-    "typings": "typings install",
-    "build": "npm run typings && npm run lint && npm run compile && npm run dts ",
+    "build": "npm run lint && npm run compile",
     "test": "node_modules/.bin/mocha",
     "debugtest": "NODE_DEBUG=zk-lock ./node_modules/.bin/mocha",
     "prepublish": "npm run build"
   },
   "dependencies": {
+    "@types/bluebird": "^3.5.2",
+    "@types/node": "^7.0.12",
+    "@types/node-zookeeper-client": "^0.2.1",
     "bluebird": "^3.4.6",
-    "locators": "^1.0.1",
+    "locators": "^2.0.0",
     "node-zookeeper-client": "^0.2.2"
   },
   "devDependencies": {
     "chai": "^3.5.0",
-    "dts-generator": "^2.0.0",
-    "mocha": "^3.1.2",
-    "tslint": "^3.15.1",
-    "typescript": "~2.0.10",
-    "typings": "^2.0.0"
+    "mocha": "^3.2.0",
+    "tslint": "^5.0.0",
+    "typescript": "^2.2.2"
   }
 }

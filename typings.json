@@ -1,9 +1,0 @@
-{
-  "name": "zk-lock",
-  "globalDependencies": {
-    "node": "github:DefinitelyTyped/DefinitelyTyped/node/node.d.ts#d6c98baa7fd703e449cf37f3ec39ed3bd92cfd35"
-  },
-  "dependencies": {
-    "bluebird": "registry:npm/bluebird#3.3.4+20160802085254"
-  }
-}
