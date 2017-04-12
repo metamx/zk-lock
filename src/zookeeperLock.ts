@@ -15,7 +15,7 @@ export class ZookeeperLockTimeoutError extends Error {
 
     constructor(message : string, path : string, timeout? : number) {
         super(message);
-        (Object as any).setPrototypeOf(this, new.target.prototype);
+        (Object as any).setPrototypeOf(this, ZookeeperLockTimeoutError.prototype);
         this.message = message;
         this.lockPath = path;
         this.timeout = timeout;
@@ -30,7 +30,7 @@ export class ZookeeperLockAlreadyLockedError extends Error {
 
     constructor(message : string, path : string) {
         super(message);
-        (Object as any).setPrototypeOf(this, new.target.prototype);
+        (Object as any).setPrototypeOf(this, ZookeeperLockAlreadyLockedError.prototype);
         this.message = message;
         this.lockPath = path;
     }
