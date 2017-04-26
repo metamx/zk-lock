@@ -659,7 +659,7 @@ export class ZookeeperLock extends EventEmitter {
                         }
                     );
                 }
-            })
+            });
 
         });
     }

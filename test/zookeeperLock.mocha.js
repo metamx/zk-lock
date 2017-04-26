@@ -343,5 +343,34 @@ describe('Zookeeper lock', function () {
 
         return null;
     });
+
+    it("functions correctly when lockers ahead of it give up", (testComplete) => {
+        /* testing code changes to use exists watchers instead of getChildren watcher, to ensure that lock3 is
+         * able to lock correctly if lock2 (which it is watching for existence) gives up on waiting for lock1 to
+         * finish, forcing lock3 to call getChildren again and watch existence on lock1
+         */
+
+        this.timeout(20000);
+        const lockConfig = {
+            serverLocator: locator,
+            pathPrefix: 'tests',
+            sessionTimeout: 2000
+        };
+        const lock1 = new ZookeeperLock(lockConfig);
+        const lock2 = new ZookeeperLock(lockConfig);
+        const lock3 = new ZookeeperLock(lockConfig);
+
+        lock1.lock('test').then(() => {
+            lock2.lock('test', 5000).catch(() => {
+                lock1.unlock();
+            });
+            return promise.delay(100);
+        }).then(() => {
+            return lock3.lock('test');
+        }).then(() => {
+            testComplete();
+        }).catch(testComplete);
+        return;
+    });
 });
 
