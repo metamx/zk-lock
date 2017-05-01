@@ -358,7 +358,7 @@ export class ZookeeperLock extends EventEmitter {
      * @returns {Promise<any>}
      */
     public lock = (key : string, timeout : number = 0) : Promise<any> => {
-        const path = `/locks/${this.config.pathPrefix ? this.config.pathPrefix + '/' : '' }`;
+        const path = `/locks/${this.config.pathPrefix ? `${this.config.pathPrefix}/` : '' }`;
         const nodePath = `${path}${key}`;
         const someRandomExtraLogText = this.config.maxConcurrentHolders > 1 ?
             ` with ${this.config.maxConcurrentHolders} concurrent lock holders` :
@@ -410,7 +410,7 @@ export class ZookeeperLock extends EventEmitter {
     private changeState(newState : string) {
 
         const logIgnored = () => {
-            debuglog(`--${this.path && this.key ?
+            debuglog(`${this.path && this.key ?
                 `${this.path}/${this.key}` :
                 this.path ?
                     this.path :
@@ -482,7 +482,7 @@ export class ZookeeperLock extends EventEmitter {
             return this.config.serverLocator().then((location) => {
                 let server = location.host;
                 if (location.port) {
-                    server += ":" + location.port;
+                    server += `:${location.port}`;
                 }
                 debuglog('server location resolved');
                 debuglog(server);
@@ -638,20 +638,29 @@ export class ZookeeperLock extends EventEmitter {
      */
     private makeLockDir = (path) : Promise<any> => {
         return new Promise<any>((resolve, reject) => {
-            this.client.mkdirp(
-                path,
-                (err) => {
-                    if (this.continueLocking()) {
+            this.client.exists(path, (error, stat) => {
+                if (error) {
+                    return reject(new Error(`Failed to create directory: ${path} due to: ${error}.`));
+                } else if (stat) {
+                    return resolve(true);
+                } else {
+                    this.client.mkdirp(
+                        path,
+                        (err) => {
+                            if (this.continueLocking()) {
 
-                        if (err) {
-                            return reject(new Error(`Failed to create directory: ${path} due to: ${err}.`));
+                                if (err) {
+                                    return reject(new Error(`Failed to create directory: ${path} due to: ${err}.`));
+                                }
+                                resolve(true);
+                            } else if (this.shouldRejectPromise()) {
+                                return reject(new Error('aborting lock process'));
+                            }
                         }
-                        resolve(true);
-                    } else if (this.shouldRejectPromise()) {
-                        return reject(new Error('aborting lock process'));
-                    }
+                    );
                 }
-            );
+            });
+
         });
     }
 
@@ -666,16 +675,17 @@ export class ZookeeperLock extends EventEmitter {
             this.client.create(
                 `${path}/lock-`,
                 new Buffer('lock'),
+                null,
                 zk.CreateMode.EPHEMERAL_SEQUENTIAL,
                 (err, lockPath) => {
                     if (this.continueLocking()) {
                         if (err) {
                             return reject(new Error(`Failed to create node: ${lockPath} due to: ${err}.`));
                         }
-                        debuglog(`init lock: ${path}, ${lockPath.replace(path + '/', '')}`);
+                        debuglog(`init lock: ${path}, ${lockPath.replace(`${path}/`, '')}`);
 
                         this.path = path;
-                        this.key = lockPath.replace(path + '/', '');
+                        this.key = lockPath.replace(`${path}/`, '');
 
                         resolve(true);
                     } else if (this.shouldRejectPromise()) {
@@ -740,14 +750,6 @@ export class ZookeeperLock extends EventEmitter {
         if (this.continueLocking()) {
             this.client.getChildren(
                 path,
-                (event) => {
-                    if (this.continueLocking()) {
-                        debuglog(`${path}/${this.key}: children changed.`);
-                        this.waitForLockHelper(resolve, reject, path);
-                    } else if (this.shouldRejectPromise()) {
-                        return reject(new Error('aborting lock process'));
-                    }
-                },
                 (err : Error, locks, state) => {
                     if (this.continueLocking()) {
                         try {
@@ -759,24 +761,27 @@ export class ZookeeperLock extends EventEmitter {
 
                             const sequence = this.filterLocks(locks)
                                 .map((l) => {
-                                    return ZookeeperLock.getSequenceNumber(l);
+                                    return {
+                                        lockKey: l,
+                                        lockSequenceNumber: ZookeeperLock.getSequenceNumber(l)
+                                    };
                                 })
                                 .filter((l) => {
-                                    return l >= 0;
+                                    return l.lockSequenceNumber >= 0;
                                 });
 
                             debuglog(`${path}/${this.key}: lock sequence: ${JSON.stringify(sequence)}`);
 
                             const mySeq = ZookeeperLock.getSequenceNumber(this.key);
 
-                            const sorted : number[] = sequence.sort((a, b) => {
-                                return a - b;
+                            const sorted : Array<{lockSequenceNumber : number, lockKey : string}> = sequence.sort((a, b) => {
+                                return a.lockSequenceNumber - b.lockSequenceNumber;
                             });
                             const offset = Math.min(sorted.length, this.config.maxConcurrentHolders);
                             const min = sorted[offset - 1];
 
                             debuglog(`${path}/${this.key}: checking ${mySeq} less than ${min} + ${this.config.maxConcurrentHolders}`);
-                            if (mySeq <= min) {
+                            if (mySeq <= min.lockSequenceNumber) {
                                 debuglog(`${path}/${this.key}: ${mySeq} can grab the lock on ${path}`);
                                 return resolve(true);
                             } else if (this.config.failImmediate) {
@@ -787,6 +792,40 @@ export class ZookeeperLock extends EventEmitter {
                                 });
                             }
                             debuglog(`${path}/${this.key}: lock not available for ${mySeq} on ${path}, waiting...`);
+
+                            let waitForIndex = 0;
+                            for (let i = 0; i < sequence.length; i++) {
+                                if (sequence[i].lockSequenceNumber === mySeq) {
+                                    waitForIndex = i - 1;
+                                    break;
+                                }
+                            }
+
+                            const retry = () => {
+                                if (this.continueLocking()) {
+                                    debuglog(`${path}/${this.key}: lock holder gone, retrying lock.`);
+                                    this.waitForLockHelper(resolve, reject, path);
+                                } else if (this.shouldRejectPromise()) {
+                                    return reject(new Error('aborting lock process'));
+                                }
+                            };
+
+                            const watchPath = `${path}/${sorted[waitForIndex].lockKey}`;
+                            debuglog(`watching for key ${watchPath}`);
+                            (this.client as any).exists(
+                                watchPath,
+                                (event) => {
+                                    debuglog('exists changed');
+                                    retry();
+                                },
+                                (error, stat) => {
+                                    debuglog(`waiting for ${watchPath}`);
+                                    if (!stat) {
+                                        retry();
+                                    }
+                                    debuglog(`exists callback: ${JSON.stringify(stat)}`);
+                                }, true
+                            );
                         } catch (ex) {
                             debuglog(`${path}/${this.key}: error - ${ex.message}`);
                             reject(ex);
@@ -816,7 +855,7 @@ export class ZookeeperLock extends EventEmitter {
 
     private checkedLockedHelper = (key : string) => {
         return new Promise<boolean>((resolve, reject) => {
-            const path = `/locks/${this.config.pathPrefix ? this.config.pathPrefix + '/' : '' }`;
+            const path = `/locks/${this.config.pathPrefix ? `${this.config.pathPrefix}/` : '' }`;
             const nodePath = `${path}${key}`;
             this.client.getChildren(
                 nodePath,
