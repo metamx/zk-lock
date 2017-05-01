@@ -762,26 +762,26 @@ export class ZookeeperLock extends EventEmitter {
                             const sequence = this.filterLocks(locks)
                                 .map((l) => {
                                     return {
-                                        key: l,
-                                        sequence: ZookeeperLock.getSequenceNumber(l)
+                                        lockKey: l,
+                                        lockSequenceNumber: ZookeeperLock.getSequenceNumber(l)
                                     };
                                 })
                                 .filter((l) => {
-                                    return l.sequence >= 0;
+                                    return l.lockSequenceNumber >= 0;
                                 });
 
                             debuglog(`${path}/${this.key}: lock sequence: ${JSON.stringify(sequence)}`);
 
                             const mySeq = ZookeeperLock.getSequenceNumber(this.key);
 
-                            const sorted : Array<{sequence : number, key : string}> = sequence.sort((a, b) => {
-                                return a.sequence - b.sequence;
+                            const sorted : Array<{lockSequenceNumber : number, lockKey : string}> = sequence.sort((a, b) => {
+                                return a.lockSequenceNumber - b.lockSequenceNumber;
                             });
                             const offset = Math.min(sorted.length, this.config.maxConcurrentHolders);
                             const min = sorted[offset - 1];
 
                             debuglog(`${path}/${this.key}: checking ${mySeq} less than ${min} + ${this.config.maxConcurrentHolders}`);
-                            if (mySeq <= min.sequence) {
+                            if (mySeq <= min.lockSequenceNumber) {
                                 debuglog(`${path}/${this.key}: ${mySeq} can grab the lock on ${path}`);
                                 return resolve(true);
                             } else if (this.config.failImmediate) {
@@ -795,7 +795,7 @@ export class ZookeeperLock extends EventEmitter {
 
                             let waitForIndex = 0;
                             for (let i = 0; i < sequence.length; i++) {
-                                if (sequence[i].sequence === mySeq) {
+                                if (sequence[i].lockSequenceNumber === mySeq) {
                                     waitForIndex = i - 1;
                                     break;
                                 }
@@ -810,15 +810,16 @@ export class ZookeeperLock extends EventEmitter {
                                 }
                             };
 
-                            debuglog(`watching for key ${path}/${sorted[waitForIndex].key}`);
+                            const watchPath = `${path}/${sorted[waitForIndex].lockKey}`;
+                            debuglog(`watching for key ${watchPath}`);
                             (this.client as any).exists(
-                                `${path}/${sorted[waitForIndex].key}`,
+                                watchPath,
                                 (event) => {
                                     debuglog('exists changed');
                                     retry();
                                 },
                                 (error, stat) => {
-                                    debuglog(`waiting for ${path}/${sorted[waitForIndex].key}`);
+                                    debuglog(`waiting for ${watchPath}`);
                                     if (!stat) {
                                         retry();
                                     }
