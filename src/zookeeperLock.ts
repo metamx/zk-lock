@@ -358,7 +358,7 @@ export class ZookeeperLock extends EventEmitter {
      * @returns {Promise<any>}
      */
     public lock = (key : string, timeout : number = 0) : Promise<any> => {
-        const path = `/locks/${this.config.pathPrefix ? this.config.pathPrefix + '/' : '' }`;
+        const path = `/locks/${this.config.pathPrefix ? `${this.config.pathPrefix}/` : '' }`;
         const nodePath = `${path}${key}`;
         const someRandomExtraLogText = this.config.maxConcurrentHolders > 1 ?
             ` with ${this.config.maxConcurrentHolders} concurrent lock holders` :
@@ -482,7 +482,7 @@ export class ZookeeperLock extends EventEmitter {
             return this.config.serverLocator().then((location) => {
                 let server = location.host;
                 if (location.port) {
-                    server += ":" + location.port;
+                    server += `:${location.port}`;
                 }
                 debuglog('server location resolved');
                 debuglog(server);
@@ -682,10 +682,10 @@ export class ZookeeperLock extends EventEmitter {
                         if (err) {
                             return reject(new Error(`Failed to create node: ${lockPath} due to: ${err}.`));
                         }
-                        debuglog(`init lock: ${path}, ${lockPath.replace(path + '/', '')}`);
+                        debuglog(`init lock: ${path}, ${lockPath.replace(`${path}/`, '')}`);
 
                         this.path = path;
-                        this.key = lockPath.replace(path + '/', '');
+                        this.key = lockPath.replace(`${path}/`, '');
 
                         resolve(true);
                     } else if (this.shouldRejectPromise()) {
@@ -810,7 +810,7 @@ export class ZookeeperLock extends EventEmitter {
                                 }
                             };
 
-                            debuglog('watching for key ' + `${path}/${sorted[waitForIndex].key}`);
+                            debuglog(`watching for key ${path}/${sorted[waitForIndex].key}`);
                             (this.client as any).exists(
                                 `${path}/${sorted[waitForIndex].key}`,
                                 (event) => {
@@ -854,7 +854,7 @@ export class ZookeeperLock extends EventEmitter {
 
     private checkedLockedHelper = (key : string) => {
         return new Promise<boolean>((resolve, reject) => {
-            const path = `/locks/${this.config.pathPrefix ? this.config.pathPrefix + '/' : '' }`;
+            const path = `/locks/${this.config.pathPrefix ? `${this.config.pathPrefix}/` : '' }`;
             const nodePath = `${path}${key}`;
             this.client.getChildren(
                 nodePath,
