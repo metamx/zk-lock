@@ -22,17 +22,17 @@
     "prepublish": "npm run build"
   },
   "dependencies": {
-    "@types/bluebird": "^3.5.2",
-    "@types/node": "^7.0.12",
-    "@types/node-zookeeper-client": "^0.2.1",
-    "bluebird": "^3.4.6",
+    "bluebird": "^3.5.0",
     "locators": "^2.0.0",
     "node-zookeeper-client": "^0.2.2"
   },
   "devDependencies": {
-    "chai": "^3.5.0",
-    "mocha": "^3.2.0",
-    "tslint": "^5.0.0",
-    "typescript": "^2.2.2"
+    "@types/bluebird": "^3.5.8",
+    "@types/node": "^8.0.14",
+    "@types/node-zookeeper-client": "^0.2.2",
+    "chai": "^4.1.0",
+    "mocha": "^3.4.2",
+    "tslint": "^5.5.0",
+    "typescript": "^2.4.2"
   }
 }

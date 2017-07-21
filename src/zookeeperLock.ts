@@ -306,11 +306,7 @@ export class ZookeeperLock extends EventEmitter {
             const cleanup = () => {
                 let destroyFunc : () => Promise<any>;
 
-                if (destroy) {
-                    destroyFunc = this.destroy;
-                } else {
-                    destroyFunc = this.disconnect;
-                }
+                destroyFunc = destroy ? this.destroy : this.disconnect;
 
                 destroyFunc().then(() => {
                     if (this.path && this.key) {
