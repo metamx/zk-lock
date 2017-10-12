@@ -18,7 +18,7 @@
     "compile": "tsc",
     "lint": "tslint -c tslint.json src/**/*.ts",
     "build": "npm run lint && npm run compile",
-    "test": "export ZKSERVER_PATH=$(which zkServer) && mocha",
+    "test": "mocha",
     "debugtest": "NODE_DEBUG=zk-lock mocha",
     "prepublish": "npm run build"
   },
