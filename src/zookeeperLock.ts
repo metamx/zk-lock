@@ -466,7 +466,7 @@ export class ZookeeperLock extends EventEmitter {
      * or zk connection expires
      * @returns {Promise<any>}
      */
-    private createClient() : Promise<any>|any {
+    private createClient() : Promise<any> | any {
         if (this.state === ZookeeperLock.States.DESTROYED) {
             return Promise.reject(new Error('cannot create client, lock destroyed'));
         }

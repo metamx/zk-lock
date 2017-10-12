@@ -9,8 +9,8 @@ const lock = require('../build/zookeeperLock');
 const {ZookeeperLock, ZookeeperLockTimeoutError, ZookeeperLockAlreadyLockedError} = lock;
 
 
-// todo: set this to the path to your zkServer command to run tests
-const zkServerCommandPath = '~/Downloads/zookeeper-3.4.6/bin/zkServer.sh';
+// Run `brew install zookeeper` if you don't have it.
+let zkServerCommandPath = '~/Downloads/zookeeper-3.4.6/bin/zkServer.sh';
 
 // todo: set this to the address of your zk server if non-standard
 const zkServer = 'localhost:2181';
@@ -31,10 +31,10 @@ const simpleExec = (cmd, done) => {
             console.log('  stdout: ' + stdout);
             console.log('  stderr: ' + stderr);
             console.log('  exec err: ' + err);
-            done(err);
+            done(err, null);
             return;
         }
-        done();
+        done(null, stdout);
     });
 };
 
@@ -61,13 +61,21 @@ describe('Zookeeper lock', function () {
 
     before((beforeComplete) => {
 
-        simpleExec(zkServerCommandPath + ' start', (err) => {
+        simpleExec('which zkServer', (err, stdout) => {
             if (err) {
                 beforeComplete(err);
                 return;
             }
-            ZookeeperLock.initialize(config);
-            beforeComplete();
+            zkServerCommandPath = stdout.split("\n")[0].trim();
+            
+            simpleExec(zkServerCommandPath + ' start', (err) => {
+                if (err) {
+                    beforeComplete(err);
+                    return;
+                }
+                ZookeeperLock.initialize(config);
+                beforeComplete();
+            });
         });
     });
 

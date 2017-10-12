@@ -13,12 +13,13 @@
     "url": "http://github.com/metamx/zk-beacon.git"
   },
   "main": "build/index.js",
+  "types": "build/index.d.ts",
   "scripts": {
     "compile": "tsc",
     "lint": "tslint -c tslint.json src/**/*.ts",
     "build": "npm run lint && npm run compile",
-    "test": "node_modules/.bin/mocha",
-    "debugtest": "NODE_DEBUG=zk-lock ./node_modules/.bin/mocha",
+    "test": "export ZKSERVER_PATH=$(which zkServer) && mocha",
+    "debugtest": "NODE_DEBUG=zk-lock mocha",
     "prepublish": "npm run build"
   },
   "dependencies": {
