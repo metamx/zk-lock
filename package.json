@@ -13,6 +13,7 @@
     "url": "http://github.com/metamx/zk-beacon.git"
   },
   "main": "build/index.js",
+  "types": "build/index.d.ts",
   "scripts": {
     "compile": "tsc",
     "lint": "tslint -c tslint.json src/**/*.ts",
