@@ -18,8 +18,8 @@
     "compile": "tsc",
     "lint": "tslint -c tslint.json src/**/*.ts",
     "build": "npm run lint && npm run compile",
-    "test": "mocha",
-    "debugtest": "NODE_DEBUG=zk-lock mocha",
+    "test": "node_modules/.bin/mocha",
+    "debugtest": "NODE_DEBUG=zk-lock ./node_modules/.bin/mocha",
     "prepublish": "npm run build"
   },
   "dependencies": {
