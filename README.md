@@ -99,5 +99,5 @@ usage:
 ## Development
 `npm run build` to compile.
 
-The `ZookeeperBeacon` test currently require a local installation of zookeeper to run successfully, specified
+The tests currently require a local installation of zookeeper to run successfully, specified
 by the `zkServerCommandPath` variable which is defined near the beginning of the tests.
