@@ -10,7 +10,7 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "http://github.com/metamx/zk-beacon.git"
+    "url": "http://github.com/metamx/zk-lock.git"
   },
   "main": "build/index.js",
   "types": "build/index.d.ts",
