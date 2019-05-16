@@ -23,9 +23,9 @@
     "prepublish": "npm run build"
   },
   "dependencies": {
+    "@metamx/node-zookeeper-client": "0.2.5",
     "bluebird": "^3.5.0",
-    "locators": "^2.0.0",
-    "node-zookeeper-client": "^0.2.2"
+    "locators": "^2.0.0"
   },
   "devDependencies": {
     "@types/bluebird": "^3.5.8",
