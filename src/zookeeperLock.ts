@@ -1,7 +1,7 @@
+import * as zk from '@metamx/node-zookeeper-client';
 import * as Promise from 'bluebird';
 import {EventEmitter} from 'events';
 import {Locator} from 'locators';
-import * as zk from 'node-zookeeper-client';
 import * as util from 'util';
 
 const debuglog = util.debuglog('zk-lock');
