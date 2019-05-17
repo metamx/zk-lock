@@ -23,14 +23,13 @@
     "prepublish": "npm run build"
   },
   "dependencies": {
-    "@metamx/node-zookeeper-client": "0.2.5",
+    "@metamx/node-zookeeper-client": "0.2.6",
     "bluebird": "^3.5.0",
     "locators": "^2.0.0"
   },
   "devDependencies": {
     "@types/bluebird": "^3.5.8",
     "@types/node": "^8.0.14",
-    "@types/node-zookeeper-client": "^0.2.2",
     "chai": "^4.1.0",
     "mocha": "^3.4.2",
     "tslint": "^5.5.0",
