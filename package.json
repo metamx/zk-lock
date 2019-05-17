@@ -1,6 +1,6 @@
 {
   "name": "@metamx/zk-lock",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "A distributed lock using zookeeper",
   "keywords": [
     "zookeeper",
