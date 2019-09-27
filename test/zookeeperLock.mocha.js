@@ -3,8 +3,8 @@
 const expect = require('chai').expect;
 const promise = require('bluebird');
 const exec = require('child_process').exec;
-const zookeeper = require('@metamx/node-zookeeper-client');
 const simple = require('locators').simple;
+const zookeeper = require('node-zookeeper-client');
 const lock = require('../build/zookeeperLock');
 const {ZookeeperLock, ZookeeperLockTimeoutError, ZookeeperLockAlreadyLockedError} = lock;
 
@@ -373,4 +373,3 @@ describe('Zookeeper lock', function () {
         return;
     });
 });
-
